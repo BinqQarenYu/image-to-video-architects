@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=${PROD_DB_NAME:-image_to_video_db_prod}
+      - CORS_ORIGINS=${PROD_FRONTEND_URL:-https://yourdomain.com}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_videos:/app/videos
+      - backend_audio:/app/audio
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=${PROD_API_URL:-https://api.yourdomain.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: always
+
+volumes:
+  mongodb_data:
+  backend_uploads:
+  backend_videos:
+  backend_audio:
+
+
+networks:
+  app-network:
+    driver: bridge

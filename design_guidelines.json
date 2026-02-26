@@ -1,0 +1,140 @@
+{
+  "identity": {
+    "name": "E1 - The Anti-AI Designer",
+    "mission": "Create a top 1% design system for architectural visualization",
+    "tone": "Precise, Immersive, Cinematic, Sophisticated",
+    "principles": [
+      "Fusion over Imitation: Architecture x Cinema x Minimalist Gallery",
+      "Emotion First: Awe and Professionalism",
+      "Content is King: UI is invisible framing for user content",
+      "Negative Space: Value empty areas",
+      "Contrast: High contrast for readability and impact"
+    ],
+    "anti_patterns": [
+      "Purple or Teal CTAs (Use Laser Orange or White)",
+      "Inter for Headings (Use Manrope)",
+      "Center-Everything (Use Asymmetry)",
+      "Gradient Overload (Use Texture/Noise)",
+      "Generic SaaS Blue"
+    ]
+  },
+  "theme": {
+    "default": "dark",
+    "strategy": "The Obsidian Lens (Jewel & Luxury + Swiss High Contrast)",
+    "colors": {
+      "base": {
+        "background": "#050505",
+        "foreground": "#FAFAFA",
+        "card": "#0A0A0A",
+        "border": "#262626"
+      },
+      "brand": {
+        "primary": "#FF4D00", 
+        "primary_foreground": "#FFFFFF",
+        "secondary": "#FFFFFF",
+        "secondary_foreground": "#000000",
+        "accent": "#1A1A1A"
+      },
+      "functional": {
+        "success": "#00C853",
+        "warning": "#FFD600",
+        "error": "#FF3B30",
+        "info": "#2979FF"
+      },
+      "glass": {
+        "panel": "bg-black/60 backdrop-blur-xl border-white/10",
+        "overlay": "bg-black/80 backdrop-blur-sm"
+      }
+    },
+    "typography": {
+      "headings": {
+        "family": "Manrope, sans-serif",
+        "weights": ["300", "600", "800"],
+        "tracking": "tracking-tight",
+        "usage": "All section titles, hero text"
+      },
+      "body": {
+        "family": "Inter, sans-serif",
+        "weights": ["400", "500"],
+        "usage": "General UI text, descriptions"
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "usage": "Timestamps, dimensions, technical specs, timeline values"
+      }
+    }
+  },
+  "layout_strategy": {
+    "container_padding": {
+      "mobile": "p-6",
+      "desktop": "p-12",
+      "section_gap": "gap-24"
+    },
+    "grids": {
+      "marketing": "grid-cols-1 md:grid-cols-12 gap-8 (Tetris Grid)",
+      "dashboard": "grid-cols-1 md:grid-cols-4 gap-4 (High Density)",
+      "gallery": "grid-cols-1 md:grid-cols-3 gap-1 (Masonry-feel with tight gap)"
+    },
+    "border_radius": {
+      "outer": "rounded-xl",
+      "inner": "rounded-lg",
+      "button": "rounded-full" 
+    }
+  },
+  "components": {
+    "overrides": {
+      "Button": {
+        "styles": "rounded-full font-semibold tracking-wide transition-all duration-300",
+        "variants": {
+          "default": "bg-primary text-white hover:bg-primary/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,77,0,0.3)]",
+          "outline": "border border-white/20 bg-transparent text-white hover:bg-white hover:text-black hover:border-white",
+          "ghost": "text-white/60 hover:text-white hover:bg-white/10"
+        }
+      },
+      "Card": {
+        "styles": "bg-[#0A0A0A] border border-white/10 shadow-2xl hover:border-white/20 transition-colors duration-500",
+        "glass_variant": "bg-black/40 backdrop-blur-md border border-white/5"
+      },
+      "Input": {
+        "styles": "bg-[#111] border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-white placeholder:text-white/20 rounded-lg h-12"
+      }
+    },
+    "custom_components": {
+      "Timeline": {
+        "description": "A floating glass panel at the bottom for video sequencing",
+        "style": "fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-5xl h-32 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl z-50 flex items-center p-4 gap-4 shadow-2xl"
+      },
+      "Dropzone": {
+        "description": "Large dashed area for upload",
+        "style": "border-2 border-dashed border-white/10 hover:border-primary/50 bg-white/5 hover:bg-white/10 rounded-2xl transition-all duration-300 flex flex-col items-center justify-center min-h-[400px]"
+      }
+    }
+  },
+  "motion": {
+    "transition": "transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]",
+    "hover_lift": "hover:-translate-y-1",
+    "scroll": "Use Lenis for smooth scrolling on landing page",
+    "page_transition": "framer-motion opacity fade + slight y-axis slide"
+  },
+  "assets": {
+    "images": {
+      "hero_bg": "https://images.unsplash.com/photo-1770086961977-d490f8b8d370?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBhcmNoaXRlY3R1cmFsJTIwZmFjYWRlJTIwY29uY3JldGUlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc3MDc4NDE3M3ww&ixlib=rb-4.1.0&q=85",
+      "feature_1": "https://images.unsplash.com/photo-1764889744736-b92830365267?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhcmNoaXRlY3R1cmFsJTIwZmFjYWRlJTIwY29uY3JldGUlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc3MDc4NDE3M3ww&ixlib=rb-4.1.0&q=85",
+      "feature_2": "https://images.unsplash.com/photo-1765862835193-3c37388a409e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHw0fHxhcmNoaXRlY3R1cmFsJTIwaW50ZXJpb3IlMjBtaW5pbWFsaXN0JTIwbHV4dXJ5JTIwbGl2aW5nJTIwcm9vbXxlbnwwfHx8fDE3NzA3ODQxNzR8MA&ixlib=rb-4.1.0&q=85",
+      "feature_3": "https://images.unsplash.com/photo-1760072513442-9872656c1b07?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxhcmNoaXRlY3R1cmFsJTIwaW50ZXJpb3IlMjBtaW5pbWFsaXN0JTIwbHV4dXJ5JTIwbGl2aW5nJTIwcm9vbXxlbnwwfHx8fDE3NzA3ODQxNzR8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width=1.5"
+    }
+  },
+  "universal_guidelines": [
+    "Execute tools in parallel by default to reduce latency.",
+    "Do not use gradients for dark colors; use solid deep colors.",
+    "Use 'sonner' for toast notifications.",
+    "Use 'lucide-react' for icons.",
+    "Ensure all interactive elements have 'data-testid'.",
+    "Never center align the app container text-align.",
+    "Use named exports for components and default exports for pages."
+  ]
+}

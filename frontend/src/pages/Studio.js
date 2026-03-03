@@ -545,6 +545,7 @@ export const Studio = () => {
                       )}
                       <button
                         data-testid={`remove-image-${index}`}
+                        aria-label="Remove image"
                         onClick={() => removeImage(img.id)}
                         className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
                       >

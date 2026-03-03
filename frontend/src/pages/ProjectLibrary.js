@@ -1,7 +1,18 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Play, Trash2, Calendar, Clock, Layout, Film } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "../components/ui/alert-dialog";
 import { toast } from 'sonner';
 import axios from 'axios';
 
@@ -78,7 +89,7 @@ export const ProjectLibrary = () => {
 
             <div className="max-w-7xl mx-auto px-6 py-12">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center min-h-[400px]">
+                    <div className="flex flex-col items-center justify-center min-h(\[400px\])">
                         <Loader2 className="w-12 h-12 text-[#FF4D00] animate-spin mb-4" />
                         <p className="text-white/60">Loading your projects...</p>
                     </div>
@@ -120,12 +131,34 @@ export const ProjectLibrary = () => {
                                         </div>
                                     )}
                                     <div className="absolute top-3 right-3 flex gap-2">
-                                        <button
-                                            onClick={() => deleteProject(project.id)}
-                                            className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <button
+                                                    aria-label="Delete project"
+                                                    className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="bg-[#1A1A1A] border-white/10 text-white">
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-white/60">
+                                                        This action cannot be undone. This will permanently delete your
+                                                        project and remove the video from our servers.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel className="bg-transparent border-white/10 text-white hover:bg-white/5">Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        onClick={() => deleteProject(project.id)}
+                                                        className="bg-red-600 text-white hover:bg-red-700 border-none"
+                                                    >
+                                                        Delete Project
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </div>
 

@@ -17,6 +17,9 @@ import shutil
 import tempfile
 import httpx
 import base64
+import json
+import re
+import traceback
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -146,7 +149,6 @@ class AnimateResponse(BaseModel):
 class ScriptEngine:
     @staticmethod
     async def generate_openai(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -162,7 +164,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -174,7 +175,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_grok(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -190,7 +190,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -202,7 +201,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_openrouter(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -218,7 +216,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -230,7 +227,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_gemini(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
             "Each has 'description' (narration, 1-2 sentences) and 'image_prompt' (Midjourney-style prompt). Raw JSON only."
@@ -242,7 +238,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -254,7 +249,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_ollama(prompt: str, num_scenes: int, endpoint: str, model: str) -> List[dict]:
-        import json
         sys_msg = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of {num_scenes} scene objects. "
             "Each has 'description' and 'image_prompt'. Raw JSON only."
@@ -266,7 +260,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -390,7 +383,6 @@ class VideoEngine:
     @staticmethod
     async def generate_runway(image_local_path: str, prompt: str, api_key: str) -> str:
         """Task creation → polling → download → return local path"""
-        import base64
         ext = Path(image_local_path).suffix.lstrip(".")
         with open(image_local_path, "rb") as f:
             b64_img = base64.b64encode(f.read()).decode()
@@ -499,13 +491,6 @@ async def get_upload(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
-
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
     try:
@@ -585,7 +570,6 @@ async def generate_script(
         logger.error(f"Script generation timeout: {msg}")
         raise HTTPException(status_code=504, detail=msg)
     except Exception as e:
-        import traceback
         logger.error(f"Script generation error details:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -824,19 +808,16 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
-                if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+            # Performance: Process images in parallel using asyncio.to_thread
+            # to avoid blocking the event loop with heavy PIL operations.
+            tasks = [
+                asyncio.to_thread(process_single_image, url, idx, width, height, temp_path)
+                for idx, url in enumerate(image_urls)
+            ]
+            try:
+                processed_images = await asyncio.gather(*tasks)
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"
@@ -935,6 +916,24 @@ async def delete_project(project_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted"}
+
+def process_single_image(url: str, idx: int, width: int, height: int, temp_path: Path) -> str:
+    """Helper to process a single image: resize and save to temp directory."""
+    filename = url.split('/')[-1]
+    source_path = UPLOADS_DIR / filename
+    if not source_path.exists():
+        raise FileNotFoundError(f"Image not found: {filename}")
+
+    img = Image.open(source_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    # Performance: Use BILINEAR instead of LANCZOS for significantly faster resizing
+    # with negligible quality loss for video frames.
+    img = img.resize((width, height), Image.Resampling.BILINEAR)
+    processed_path = temp_path / f"image_{idx:04d}.jpg"
+    img.save(processed_path, 'JPEG', quality=95)
+    return str(processed_path)
 
 # ─── Stock Media ──────────────────────────────────────────────────────────────
 @api_router.get("/stock-videos")

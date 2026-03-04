@@ -17,6 +17,8 @@ import shutil
 import tempfile
 import httpx
 import base64
+import ipaddress
+from urllib.parse import urlparse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -141,6 +143,43 @@ class AnimateRequest(BaseModel):
 
 class AnimateResponse(BaseModel):
     url: str
+
+# ─── Security Utilities ───────────────────────────────────────────────────────
+def is_safe_url(url: str) -> bool:
+    """
+    Validates a URL for SSRF protection.
+    Allows http/https schemes and blocks access to sensitive internal IP ranges,
+    except for localhost to support local Ollama instances.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Block common Cloud Metadata IP explicitly
+        if hostname == "169.254.169.254":
+            return False
+
+        try:
+            ip = ipaddress.ip_address(hostname)
+            # Allow localhost for local Ollama
+            if ip.is_loopback:
+                return True
+            # Block private, link-local, and reserved IP ranges (SSRF protection)
+            if ip.is_private or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            # Not an IP address, it's a domain name.
+            if hostname.lower() == 'localhost':
+                return True
+
+        return True
+    except Exception:
+        return False
 
 # ─── Engines ──────────────────────────────────────────────────────────────────
 class ScriptEngine:
@@ -562,6 +601,10 @@ async def generate_script(
             scenes = await ScriptEngine.generate_openrouter(request.prompt, request.num_scenes, x_openrouter_key)
         elif request.provider == "ollama":
             endpoint = x_ollama_endpoint or "http://localhost:11434"
+            # Validate the endpoint for SSRF protection
+            if not is_safe_url(endpoint):
+                logger.warning(f"Blocked unsafe Ollama endpoint: {endpoint}")
+                raise HTTPException(status_code=400, detail="Invalid or unsafe Ollama endpoint")
             model = x_ollama_model or "llama3"
             scenes = await ScriptEngine.generate_ollama(request.prompt, request.num_scenes, endpoint, model)
         else:

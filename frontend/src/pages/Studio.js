@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
+import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database, Copy } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
@@ -645,7 +645,21 @@ export const Studio = () => {
                         </div>
                         <p className="text-xs text-white/80 mb-2 leading-relaxed">{scene.description}</p>
                         <div className="bg-black/40 p-2 rounded text-[10px] text-white/40 font-mono break-words border border-white/5">
-                          <span className="text-white/20 uppercase text-[9px] block mb-0.5 tracking-wider">Image Prompt</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-white/20 uppercase text-[9px] tracking-wider">Image Prompt</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 text-white/20 hover:text-white/60 hover:bg-white/5"
+                              aria-label="Copy image prompt"
+                              onClick={() => {
+                                navigator.clipboard.writeText(scene.image_prompt);
+                                toast.success("Prompt copied to clipboard!");
+                              }}
+                            >
+                              <Copy className="w-2.5 h-2.5" />
+                            </Button>
+                          </div>
                           {scene.image_prompt}
                         </div>
                       </div>

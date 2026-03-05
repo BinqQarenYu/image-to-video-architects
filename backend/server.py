@@ -504,7 +504,7 @@ async def get_video(filename: str):
     file_path = VIDEOS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, media_type="video/mp4")
 
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
@@ -524,13 +524,6 @@ async def get_audio(filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path, media_type="video/mp4")
 
 # ─── AI: Script Generation ────────────────────────────────────────────────────
 @api_router.post("/generate-script", response_model=ScriptResponse)
@@ -824,19 +817,32 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
+
+            def _process_single_image(idx, url, width, height, temp_path):
+                """Helper to process a single image in a separate thread."""
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+                    raise FileNotFoundError(f"Image not found: {filename}")
+
+                with Image.open(source_path) as img:
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # ⚡ PERFORMANCE: Use BILINEAR for faster resizing in video frame prep
+                    img = img.resize((width, height), Image.Resampling.BILINEAR)
+                    processed_path = temp_path / f"image_{idx:04d}.jpg"
+                    img.save(processed_path, 'JPEG', quality=95)
+                    return str(processed_path)
+
+            # ⚡ PERFORMANCE: Process images in parallel using thread pool
+            tasks = [
+                asyncio.to_thread(_process_single_image, idx, url, width, height, temp_path)
+                for idx, url in enumerate(image_urls)
+            ]
+            try:
+                processed_images = await asyncio.gather(*tasks)
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

@@ -1,0 +1,4 @@
+## 2025-03-06 - [Security Hardening: Path Traversal and SSRF]
+**Vulnerability:** Multiple endpoints in `backend/server.py` were vulnerable to Path Traversal because they directly concatenated user-provided filenames with directory paths. Additionally, the `/api/generate-script` endpoint was vulnerable to SSRF via a user-provided `X-Ollama-Endpoint` header.
+**Learning:** Even with modern frameworks like FastAPI, manual path construction remains a common source of traversal vulnerabilities. SSRF is a significant risk when allowing users to configure internal service endpoints.
+**Prevention:** Use the `safe_join` utility which utilizes `Path(filename).name` to strip directory components and verifies the final resolved path. Validate all user-provided URLs with `is_safe_url` to block sensitive internal/private IP ranges.

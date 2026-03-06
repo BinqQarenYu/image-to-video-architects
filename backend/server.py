@@ -60,6 +60,49 @@ AUDIO_DIR.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def safe_join(directory: Path, filename: str) -> Path:
+    """Safely join a directory and a filename, preventing path traversal."""
+    if not filename or filename in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    safe_name = Path(filename).name
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    path = (directory / safe_name).resolve()
+    if not str(path).startswith(str(directory.resolve())):
+        raise HTTPException(status_code=400, detail="Path traversal attempt detected")
+    return path
+
+def is_safe_url(url: str) -> bool:
+    """Check if a URL is safe for internal requests (SSRF protection)."""
+    from urllib.parse import urlparse
+    import socket
+    import ipaddress
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        if hostname.lower() == "localhost":
+            return True
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            try:
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+            except Exception:
+                return False
+        # Block sensitive ranges, allow loopback for local Ollama
+        if ip.is_loopback:
+            return True
+        if ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            return False
+        return True
+    except Exception:
+        return False
+
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
@@ -494,24 +537,24 @@ async def upload_images(files: List[UploadFile] = File(...)):
 
 @api_router.get("/uploads/{filename}")
 async def get_upload(filename: str):
-    file_path = UPLOADS_DIR / filename
+    file_path = safe_join(UPLOADS_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
 @api_router.get("/videos/{filename}")
 async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
+    file_path = safe_join(VIDEOS_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, media_type="video/mp4")
 
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
     try:
         file_ext = Path(file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = AUDIO_DIR / unique_filename
+        file_path = safe_join(AUDIO_DIR, unique_filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         return {"url": f"/api/audio/{unique_filename}"}
@@ -520,17 +563,10 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @api_router.get("/audio/{filename}")
 async def get_audio(filename: str):
-    file_path = AUDIO_DIR / filename
+    file_path = safe_join(AUDIO_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path, media_type="video/mp4")
 
 # ─── AI: Script Generation ────────────────────────────────────────────────────
 @api_router.post("/generate-script", response_model=ScriptResponse)
@@ -562,6 +598,8 @@ async def generate_script(
             scenes = await ScriptEngine.generate_openrouter(request.prompt, request.num_scenes, x_openrouter_key)
         elif request.provider == "ollama":
             endpoint = x_ollama_endpoint or "http://localhost:11434"
+            if not is_safe_url(endpoint):
+                raise HTTPException(status_code=400, detail="Insecure Ollama endpoint provided")
             model = x_ollama_model or "llama3"
             scenes = await ScriptEngine.generate_ollama(request.prompt, request.num_scenes, endpoint, model)
         else:
@@ -693,7 +731,7 @@ async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] 
 async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends()): # Using keys dependency
     try:
         filename = request.image_url.split("/")[-1]
-        local_path = UPLOADS_DIR / filename
+        local_path = safe_join(UPLOADS_DIR, filename)
         if not local_path.exists():
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
         
@@ -727,18 +765,18 @@ async def compile_video(
             lines = []
             for vurl in video_urls:
                 filename = vurl.split("/")[-1]
-                vpath = VIDEOS_DIR / filename
+                vpath = safe_join(VIDEOS_DIR, filename)
                 if not vpath.exists():
                     raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
                 lines.append(f"file '{vpath}'\n")
             concat_file.write_text("".join(lines))
 
             output_filename = f"{uuid.uuid4()}.mp4"
-            output_path = VIDEOS_DIR / output_filename
+            output_path = safe_join(VIDEOS_DIR, output_filename)
 
             if audio_url:
                 audio_filename = audio_url.split("/")[-1]
-                audio_path = AUDIO_DIR / audio_filename
+                audio_path = safe_join(AUDIO_DIR, audio_filename)
                 if not audio_path.exists():
                     raise HTTPException(status_code=404, detail="Audio file not found")
                 video_in = ffmpeg.input(str(concat_file), format="concat", safe=0)
@@ -827,7 +865,7 @@ async def generate_video(
             processed_images = []
             for idx, url in enumerate(image_urls):
                 filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
+                source_path = safe_join(UPLOADS_DIR, filename)
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
                 img = Image.open(source_path)
@@ -864,7 +902,7 @@ async def generate_video(
 
                 if audio_url:
                     audio_filename = audio_url.split("/")[-1]
-                    audio_path = AUDIO_DIR / audio_filename
+                    audio_path = safe_join(AUDIO_DIR, audio_filename)
                     if audio_path.exists():
                         audio_stream = ffmpeg.input(str(audio_path))
                         stream = (

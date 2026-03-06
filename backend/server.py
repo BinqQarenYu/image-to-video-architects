@@ -822,21 +822,31 @@ async def generate_video(
         width = (width // 2) * 2
         height = (height // 2) * 2
 
+        def process_image(url, idx, temp_path, width, height):
+            filename = url.split('/')[-1]
+            source_path = UPLOADS_DIR / filename
+            if not source_path.exists():
+                raise FileNotFoundError(f"Image not found: {filename}")
+            img = Image.open(source_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            # Bolt optimization: BILINEAR is faster than LANCZOS with minimal quality loss for video
+            img = img.resize((width, height), Image.Resampling.BILINEAR)
+            processed_path = temp_path / f"image_{idx:04d}.jpg"
+            img.save(processed_path, 'JPEG', quality=95)
+            return str(processed_path)
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
-                if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+            # Bolt optimization: process images in parallel using thread pool
+            tasks = [
+                asyncio.to_thread(process_image, url, idx, temp_path, width, height)
+                for idx, url in enumerate(image_urls)
+            ]
+            try:
+                processed_images = await asyncio.gather(*tasks)
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

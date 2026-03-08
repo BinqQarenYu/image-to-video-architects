@@ -17,6 +17,44 @@ import shutil
 import tempfile
 import httpx
 import base64
+import socket
+import ipaddress
+from urllib.parse import urlparse
+
+async def is_safe_url(url: str, allowed_localhost: bool = True) -> bool:
+    """
+    Validates a URL to prevent SSRF by checking for safe schemes and blocking
+    private/internal IP ranges using the ipaddress module.
+    """
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Explicitly allow localhost/127.0.0.1 if requested (for Ollama)
+        if allowed_localhost and hostname in ("localhost", "127.0.0.1"):
+            return True
+
+        # Resolve hostname to IP asynchronously to avoid blocking the event loop
+        ip_addr_str = await asyncio.to_thread(socket.gethostbyname, hostname)
+        ip_addr = ipaddress.ip_address(ip_addr_str)
+
+        # Block private, loopback, link-local, and multicast addresses
+        if ip_addr.is_private or ip_addr.is_loopback or ip_addr.is_link_local or ip_addr.is_multicast:
+            # Re-check loopback if allowed_localhost is True (already handled above but for completeness)
+            if allowed_localhost and ip_addr.is_loopback:
+                return True
+            return False
+
+        return True
+    except Exception:
+        return False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -78,7 +116,13 @@ class AIProviderKeys:
     ):
         self.openai = openai_key
         self.gemini = gemini_key
+
+        # SSRF Protection: Validate Ollama endpoint
+        # Note: Dependency __init__ cannot be async.
+        # We will handle validation in the endpoint instead to keep this clean
+        # or use a simplified sync check here if necessary.
         self.ollama_endpoint = ollama_endpoint or "http://localhost:11434"
+
         self.fal = fal_key
         self.elevenlabs = elevenlabs_key
         self.minimax = minimax_key
@@ -494,17 +538,12 @@ async def upload_images(files: List[UploadFile] = File(...)):
 
 @api_router.get("/uploads/{filename}")
 async def get_upload(filename: str):
-    file_path = UPLOADS_DIR / filename
+    # Use Path(filename).name to prevent path traversal
+    file_path = UPLOADS_DIR / Path(filename).name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
@@ -520,14 +559,16 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @api_router.get("/audio/{filename}")
 async def get_audio(filename: str):
-    file_path = AUDIO_DIR / filename
+    # Use Path(filename).name to prevent path traversal
+    file_path = AUDIO_DIR / Path(filename).name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path)
 
 @api_router.get("/videos/{filename}")
 async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
+    # Use Path(filename).name to prevent path traversal
+    file_path = VIDEOS_DIR / Path(filename).name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path, media_type="video/mp4")
@@ -562,6 +603,10 @@ async def generate_script(
             scenes = await ScriptEngine.generate_openrouter(request.prompt, request.num_scenes, x_openrouter_key)
         elif request.provider == "ollama":
             endpoint = x_ollama_endpoint or "http://localhost:11434"
+            # SSRF Protection: Validate Ollama endpoint
+            if endpoint and not await is_safe_url(endpoint, allowed_localhost=True):
+                logger.warning(f"Blocking potentially unsafe Ollama endpoint: {endpoint}")
+                endpoint = "http://localhost:11434"
             model = x_ollama_model or "llama3"
             scenes = await ScriptEngine.generate_ollama(request.prompt, request.num_scenes, endpoint, model)
         else:
@@ -692,7 +737,8 @@ async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] 
 @api_router.post("/animate-image", response_model=AnimateResponse)
 async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends()): # Using keys dependency
     try:
-        filename = request.image_url.split("/")[-1]
+        # Use Path(request.image_url).name to prevent path traversal
+        filename = Path(request.image_url).name
         local_path = UPLOADS_DIR / filename
         if not local_path.exists():
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
@@ -726,18 +772,22 @@ async def compile_video(
             concat_file = tmp / "concat.txt"
             lines = []
             for vurl in video_urls:
-                filename = vurl.split("/")[-1]
+                # Use Path(vurl).name to prevent path traversal
+                filename = Path(vurl).name
                 vpath = VIDEOS_DIR / filename
                 if not vpath.exists():
                     raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
-                lines.append(f"file '{vpath}'\n")
+                # Escape single quotes for FFmpeg concat format (double them)
+                safe_vpath = str(vpath).replace("'", "''")
+                lines.append(f"file '{safe_vpath}'\n")
             concat_file.write_text("".join(lines))
 
             output_filename = f"{uuid.uuid4()}.mp4"
             output_path = VIDEOS_DIR / output_filename
 
             if audio_url:
-                audio_filename = audio_url.split("/")[-1]
+                # Use Path(audio_url).name to prevent path traversal
+                audio_filename = Path(audio_url).name
                 audio_path = AUDIO_DIR / audio_filename
                 if not audio_path.exists():
                     raise HTTPException(status_code=404, detail="Audio file not found")
@@ -826,7 +876,8 @@ async def generate_video(
             temp_path = Path(temp_dir)
             processed_images = []
             for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
+                # Use Path(url).name to prevent path traversal
+                filename = Path(url).name
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
@@ -863,7 +914,8 @@ async def generate_video(
                 video_stream = ffmpeg.input(str(concat_file), format='concat', safe=0).filter('fps', fps=25).filter('format', pix_fmts='yuv420p')
 
                 if audio_url:
-                    audio_filename = audio_url.split("/")[-1]
+                    # Use Path(audio_url).name to prevent path traversal
+                    audio_filename = Path(audio_url).name
                     audio_path = AUDIO_DIR / audio_filename
                     if audio_path.exists():
                         audio_stream = ffmpeg.input(str(audio_path))

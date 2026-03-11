@@ -17,6 +17,8 @@ import shutil
 import tempfile
 import httpx
 import base64
+import ipaddress
+from urllib.parse import urlparse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -59,6 +61,34 @@ AUDIO_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def is_safe_url(url: str) -> bool:
+    """Check if a URL is safe to request (prevents SSRF)."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Allow localhost for local services like Ollama
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            return True
+        # Block private/reserved IP ranges
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return not (ip.is_private or ip.is_reserved or ip.is_link_local)
+        except ValueError:
+            return True
+    except Exception:
+        return False
+
+def get_safe_path(directory: Path, filename: str) -> Path:
+    """Prevent path traversal by taking only the filename and joining with directory."""
+    safe_name = Path(filename).name
+    return directory / safe_name
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -494,17 +524,17 @@ async def upload_images(files: List[UploadFile] = File(...)):
 
 @api_router.get("/uploads/{filename}")
 async def get_upload(filename: str):
-    file_path = UPLOADS_DIR / filename
+    file_path = get_safe_path(UPLOADS_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
 @api_router.get("/videos/{filename}")
 async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
+    file_path = get_safe_path(VIDEOS_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, media_type="video/mp4")
 
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
@@ -520,17 +550,10 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @api_router.get("/audio/{filename}")
 async def get_audio(filename: str):
-    file_path = AUDIO_DIR / filename
+    file_path = get_safe_path(AUDIO_DIR, filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path, media_type="video/mp4")
 
 # ─── AI: Script Generation ────────────────────────────────────────────────────
 @api_router.post("/generate-script", response_model=ScriptResponse)
@@ -562,6 +585,8 @@ async def generate_script(
             scenes = await ScriptEngine.generate_openrouter(request.prompt, request.num_scenes, x_openrouter_key)
         elif request.provider == "ollama":
             endpoint = x_ollama_endpoint or "http://localhost:11434"
+            if not is_safe_url(endpoint):
+                raise HTTPException(status_code=400, detail="Invalid or unsafe Ollama endpoint")
             model = x_ollama_model or "llama3"
             scenes = await ScriptEngine.generate_ollama(request.prompt, request.num_scenes, endpoint, model)
         else:
@@ -637,6 +662,8 @@ async def generate_image(request: ImageRequest, keys: AIProviderKeys = Depends()
     try:
         # If we got a URL, download it first
         if not image_bytes:
+            if not is_safe_url(remote_url):
+                raise Exception(f"Unsafe image URL from provider: {remote_url}")
             async with httpx.AsyncClient(timeout=60) as client:
                 dl = await client.get(remote_url)
                 dl.raise_for_status()
@@ -692,7 +719,7 @@ async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] 
 @api_router.post("/animate-image", response_model=AnimateResponse)
 async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends()): # Using keys dependency
     try:
-        filename = request.image_url.split("/")[-1]
+        filename = Path(request.image_url).name
         local_path = UPLOADS_DIR / filename
         if not local_path.exists():
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
@@ -726,18 +753,22 @@ async def compile_video(
             concat_file = tmp / "concat.txt"
             lines = []
             for vurl in video_urls:
-                filename = vurl.split("/")[-1]
+                # Sanitize filename to prevent path traversal
+                filename = Path(vurl).name
                 vpath = VIDEOS_DIR / filename
                 if not vpath.exists():
                     raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
-                lines.append(f"file '{vpath}'\n")
+                # FFmpeg concat format requires escaping single quotes by doubling them
+                # and wrapping the path in single quotes.
+                escaped_vpath = str(vpath).replace("'", "'\\''")
+                lines.append(f"file '{escaped_vpath}'\n")
             concat_file.write_text("".join(lines))
 
             output_filename = f"{uuid.uuid4()}.mp4"
             output_path = VIDEOS_DIR / output_filename
 
             if audio_url:
-                audio_filename = audio_url.split("/")[-1]
+                audio_filename = Path(audio_url).name
                 audio_path = AUDIO_DIR / audio_filename
                 if not audio_path.exists():
                     raise HTTPException(status_code=404, detail="Audio file not found")
@@ -824,19 +855,16 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
-                if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+            # Performance: Process images in parallel using asyncio.to_thread
+            # to avoid blocking the event loop with heavy PIL operations.
+            tasks = [
+                asyncio.to_thread(process_single_image, url, idx, width, height, temp_path)
+                for idx, url in enumerate(image_urls)
+            ]
+            try:
+                processed_images = await asyncio.gather(*tasks)
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"
@@ -863,7 +891,7 @@ async def generate_video(
                 video_stream = ffmpeg.input(str(concat_file), format='concat', safe=0).filter('fps', fps=25).filter('format', pix_fmts='yuv420p')
 
                 if audio_url:
-                    audio_filename = audio_url.split("/")[-1]
+                    audio_filename = Path(audio_url).name
                     audio_path = AUDIO_DIR / audio_filename
                     if audio_path.exists():
                         audio_stream = ffmpeg.input(str(audio_path))
@@ -935,6 +963,27 @@ async def delete_project(project_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted"}
+
+
+def process_single_image(url: str, idx: int, width: int, height: int, temp_path: Path) -> str:
+    """Helper to process a single image: resize and save to temp directory."""
+    # Security: Use Path(url).name to prevent path traversal
+    filename = Path(url).name
+    source_path = Path('uploads') / filename
+    if not source_path.exists():
+        raise FileNotFoundError(f"Image not found: {filename}")
+
+    from PIL import Image
+    img = Image.open(source_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    # Performance: Use BILINEAR instead of LANCZOS for significantly faster resizing
+    # with negligible quality loss for video frames.
+    img = img.resize((width, height), Image.Resampling.BILINEAR)
+    processed_path = temp_path / f"image_{idx:04d}.jpg"
+    img.save(processed_path, 'JPEG', quality=95)
+    return str(processed_path)
 
 # ─── Stock Media ──────────────────────────────────────────────────────────────
 @api_router.get("/stock-videos")

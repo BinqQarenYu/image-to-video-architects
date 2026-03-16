@@ -17,6 +17,9 @@ import shutil
 import tempfile
 import httpx
 import base64
+import ipaddress
+import socket
+from urllib.parse import urlparse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -64,6 +67,46 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 # ─── Dependency: extract API keys from request headers ────────────────────────
+async def is_safe_url(url: str) -> bool:
+    """
+    Checks if a URL is safe for server-side fetching (SSRF protection).
+    - Validates scheme (http/https).
+    - Resolves hostname to IPs and blocks private/reserved ranges.
+    - Allows localhost:11434 explicitly for Ollama.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Specific exception for Ollama on localhost
+        if (hostname == "localhost" or hostname == "127.0.0.1") and parsed.port == 11434:
+            return True
+
+        # Resolve hostname to IP addresses
+        try:
+            addr_info = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
+        except socket.gaierror:
+            return False
+
+        ips = [info[4][0] for info in addr_info]
+
+        for ip_str in ips:
+            # Handle potential IPv6 scope IDs or other non-standard formats
+            clean_ip = ip_str.split('%')[0]
+            ip = ipaddress.ip_address(clean_ip)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                return False
+
+        return True
+    except Exception as e:
+        logger.error(f"Error validating URL {url}: {e}")
+        return False
+
 class AIProviderKeys:
     def __init__(
         self,
@@ -381,6 +424,8 @@ class VideoEngine:
         local_filename = f"{uuid.uuid4()}.mp4"
         local_path = VIDEOS_DIR / local_filename
         async with httpx.AsyncClient(timeout=120) as client:
+            if not await is_safe_url(download_url):
+                raise HTTPException(status_code=400, detail="Insecure download URL")
             dl = await client.get(download_url)
             dl.raise_for_status()
             local_path.write_bytes(dl.content)
@@ -438,6 +483,8 @@ class VideoEngine:
         local_filename = f"{uuid.uuid4()}.mp4"
         local_path = VIDEOS_DIR / local_filename
         async with httpx.AsyncClient(timeout=120) as client:
+            if not await is_safe_url(video_url):
+                raise HTTPException(status_code=400, detail="Insecure video URL")
             dl = await client.get(video_url)
             dl.raise_for_status()
             local_path.write_bytes(dl.content)
@@ -563,6 +610,8 @@ async def generate_script(
         elif request.provider == "ollama":
             endpoint = x_ollama_endpoint or "http://localhost:11434"
             model = x_ollama_model or "llama3"
+            if not await is_safe_url(endpoint):
+                raise HTTPException(status_code=400, detail="Insecure Ollama endpoint")
             scenes = await ScriptEngine.generate_ollama(request.prompt, request.num_scenes, endpoint, model)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
@@ -638,6 +687,8 @@ async def generate_image(request: ImageRequest, keys: AIProviderKeys = Depends()
         # If we got a URL, download it first
         if not image_bytes:
             async with httpx.AsyncClient(timeout=60) as client:
+                if not await is_safe_url(remote_url):
+                    raise HTTPException(status_code=400, detail="Insecure image URL")
                 dl = await client.get(remote_url)
                 dl.raise_for_status()
                 image_bytes = dl.content

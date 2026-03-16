@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Key, Save, ShieldCheck, MessageSquare, Image as ImageIcon, Music, Database } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
@@ -91,12 +92,18 @@ export const ApiSettingsModal = ({ isOpen, onClose }) => {
                             </div>
                             <h2 className="text-xl font-bold font-['Manrope'] text-white">AI Provider Settings</h2>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-1 transition-colors rounded-full text-white/50 hover:text-white hover:bg-white/10"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={onClose}
+                                    aria-label="Close settings"
+                                    className="p-1 transition-colors rounded-full text-white/50 hover:text-white hover:bg-white/10"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Close settings</TooltipContent>
+                        </Tooltip>
                     </div>
 
                     <div className="flex items-start gap-3 p-3 border rounded-lg bg-green-500/10 border-green-500/20 text-green-400">

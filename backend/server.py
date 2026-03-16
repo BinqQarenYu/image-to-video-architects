@@ -652,6 +652,8 @@ async def generate_image(request: ImageRequest, keys: AIProviderKeys = Depends()
 # ─── AI: Audio Generation ─────────────────────────────────────────────────────
 @api_router.post("/generate-audio", response_model=AudioResponse)
 async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] = Header(None, alias="X-ElevenLabs-Key"), x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key")):
+    if not request.prompt or not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="Text is required for audio generation")
     try:
         if request.provider == "elevenlabs":
             if not x_elevenlabs_key:

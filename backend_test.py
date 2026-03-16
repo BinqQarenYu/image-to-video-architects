@@ -12,6 +12,7 @@ class ArchitectureVideoAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.uploaded_images = []
+        self.uploaded_audio = []
         self.generated_video_url = None
         self.project_id = None
 
@@ -67,6 +68,13 @@ class ArchitectureVideoAPITester:
         img.save(temp_path, 'JPEG')
         return temp_path
 
+    def create_test_audio(self, filename):
+        """Create a dummy test audio file"""
+        temp_path = os.path.join(tempfile.gettempdir(), filename)
+        with open(temp_path, 'wb') as f:
+            f.write(b'ID3\x03\x00\x00\x00\x00\x00\x00' + b'\x00' * 100)
+        return temp_path
+
     def test_api_root(self):
         """Test API root endpoint"""
         success, response = self.run_test("API Root", "GET", "", 200)
@@ -93,7 +101,6 @@ class ArchitectureVideoAPITester:
                 return True
             return False
         finally:
-            # Cleanup
             if os.path.exists(test_image_path):
                 os.remove(test_image_path)
 
@@ -103,7 +110,6 @@ class ArchitectureVideoAPITester:
         test_image2_path = self.create_test_image("test_multi2.jpg", 700, 500)
         
         try:
-            files = []
             with open(test_image1_path, 'rb') as f1, open(test_image2_path, 'rb') as f2:
                 files = [
                     ('files', ('test_multi1.jpg', f1.read(), 'image/jpeg')),
@@ -124,10 +130,33 @@ class ArchitectureVideoAPITester:
                 return True
             return False
         finally:
-            # Cleanup
             for path in [test_image1_path, test_image2_path]:
                 if os.path.exists(path):
                     os.remove(path)
+
+    def test_upload_audio(self):
+        """Test uploading a background audio file"""
+        test_audio_path = self.create_test_audio("test_audio.mp3")
+
+        try:
+            with open(test_audio_path, 'rb') as f:
+                files = {'file': ('test_audio.mp3', f, 'audio/mpeg')}
+                success, response = self.run_test(
+                    "Upload Audio",
+                    "POST",
+                    "upload-audio",
+                    200,
+                    files=files
+                )
+
+            if success and 'url' in response:
+                self.uploaded_audio.append(response['url'])
+                print(f"✅ Uploaded audio URL: {response['url']}")
+                return True
+            return False
+        finally:
+            if os.path.exists(test_audio_path):
+                os.remove(test_audio_path)
 
     def test_get_uploaded_image(self):
         """Test accessing an uploaded image"""
@@ -135,7 +164,6 @@ class ArchitectureVideoAPITester:
             print("❌ No uploaded images to test")
             return False
         
-        # Test the first uploaded image
         image_url = self.uploaded_images[0]
         image_filename = image_url.split('/')[-1]
         
@@ -147,13 +175,29 @@ class ArchitectureVideoAPITester:
         )
         return success
 
+    def test_get_uploaded_audio(self):
+        """Test accessing an uploaded audio file"""
+        if not self.uploaded_audio:
+            print("❌ No uploaded audio to test")
+            return False
+
+        audio_url = self.uploaded_audio[0]
+        audio_filename = audio_url.split('/')[-1]
+
+        success, response = self.run_test(
+            "Get Uploaded Audio",
+            "GET",
+            f"audio/{audio_filename}",
+            200
+        )
+        return success
+
     def test_generate_video_single_image(self):
         """Test video generation with a single image"""
         if not self.uploaded_images:
             print("❌ No uploaded images for video generation")
             return False
         
-        # Use only the first image
         data = {
             'image_urls': [self.uploaded_images[0]],
             'transition_duration': '1.0',
@@ -181,7 +225,6 @@ class ArchitectureVideoAPITester:
             print("❌ Need at least 2 uploaded images for multiple image test")
             return False
         
-        # Use first two images
         data = {
             'image_urls': self.uploaded_images[:2],
             'transition_duration': '1.5',
@@ -244,20 +287,16 @@ class ArchitectureVideoAPITester:
         """Test various error scenarios"""
         print("\n🔍 Testing Error Cases...")
         
-        # Test upload without files
         success1, _ = self.run_test("Upload No Files", "POST", "upload-images", 422)
+        success_audio_err, _ = self.run_test("Upload Audio No File", "POST", "upload-audio", 422)
         
-        # Test video generation without images
         data = {'image_urls': [], 'transition_duration': '1.0', 'image_duration': '3.0'}
         success2, _ = self.run_test("Generate Video No Images", "POST", "generate-video", 400, data=data)
         
-        # Test accessing non-existent image
         success3, _ = self.run_test("Get Non-existent Image", "GET", "uploads/nonexistent.jpg", 404)
-        
-        # Test accessing non-existent video
         success4, _ = self.run_test("Get Non-existent Video", "GET", "videos/nonexistent.mp4", 404)
         
-        return success1 and success2 and success3 and success4
+        return success1 and success2 and success3 and success4 and success_audio_err
 
 def main():
     print("🚀 Starting Architecture Video Generator API Tests")
@@ -265,11 +304,12 @@ def main():
     
     tester = ArchitectureVideoAPITester()
     
-    # Run comprehensive tests
     test_results = [
         tester.test_api_root(),
         tester.test_upload_single_image(),
         tester.test_upload_multiple_images(), 
+        tester.test_upload_audio(),
+        tester.test_get_uploaded_audio(),
         tester.test_get_uploaded_image(),
         tester.test_generate_video_single_image(),
         tester.test_generate_video_multiple_images(),
@@ -279,7 +319,6 @@ def main():
         tester.test_error_cases()
     ]
     
-    # Print final results
     print("\n" + "=" * 60)
     print(f"📊 Test Results: {tester.tests_passed}/{tester.tests_run} tests passed")
     

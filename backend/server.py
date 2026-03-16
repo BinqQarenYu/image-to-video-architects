@@ -323,8 +323,7 @@ class VideoEngine:
     async def generate_minimax(image_local_path: str, prompt: str, api_key: str) -> str:
         """Upload image → generate video → poll → download → return local path"""
         async with httpx.AsyncClient(timeout=30) as client:
-            with open(image_local_path, "rb") as f:
-                img_bytes = f.read()
+            img_bytes = await asyncio.to_thread(lambda: Path(image_local_path).read_bytes())
             ext = Path(image_local_path).suffix.lstrip(".")
             upload_r = await client.post(
                 "https://api.minimax.chat/v1/files/upload",
@@ -376,7 +375,7 @@ class VideoEngine:
         async with httpx.AsyncClient(timeout=120) as client:
             dl = await client.get(download_url)
             dl.raise_for_status()
-            local_path.write_bytes(dl.content)
+            await asyncio.to_thread(local_path.write_bytes, dl.content)
 
         return f"/api/videos/{local_filename}"
 
@@ -384,9 +383,10 @@ class VideoEngine:
     async def generate_runway(image_local_path: str, prompt: str, api_key: str) -> str:
         """Task creation → polling → download → return local path"""
         ext = Path(image_local_path).suffix.lstrip(".")
-        with open(image_local_path, "rb") as f:
-            b64_img = base64.b64encode(f.read()).decode()
-        
+        def _read_b64(path):
+            with open(path, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+        b64_img = await asyncio.to_thread(_read_b64, image_local_path)
         async with httpx.AsyncClient(timeout=30) as client:
             headers = {
                 "Authorization": f"Bearer {api_key}",
@@ -432,7 +432,7 @@ class VideoEngine:
         async with httpx.AsyncClient(timeout=120) as client:
             dl = await client.get(video_url)
             dl.raise_for_status()
-            local_path.write_bytes(dl.content)
+            await asyncio.to_thread(local_path.write_bytes, dl.content)
 
         return f"/api/videos/{local_filename}"
 
@@ -476,8 +476,10 @@ async def upload_images(files: List[UploadFile] = File(...)):
             file_ext = Path(file.filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_ext}"
             file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            def _save_file(f_in, p_out):
+                with open(p_out, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            await asyncio.to_thread(_save_file, file.file, file_path)
             uploaded_urls.append(f"/api/uploads/{unique_filename}")
         return {"urls": uploaded_urls}
     except Exception as e:
@@ -504,8 +506,10 @@ async def upload_audio(file: UploadFile = File(...)):
         file_ext = Path(file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = AUDIO_DIR / unique_filename
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        def _save_file(f_in, p_out):
+            with open(p_out, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        await asyncio.to_thread(_save_file, file.file, file_path)
         return {"url": f"/api/audio/{unique_filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -634,7 +638,7 @@ async def generate_image(request: ImageRequest, keys: AIProviderKeys = Depends()
                 image_bytes = dl.content
                 
         filename = f"{uuid.uuid4()}.jpg"
-        (UPLOADS_DIR / filename).write_bytes(image_bytes)
+        await asyncio.to_thread((UPLOADS_DIR / filename).write_bytes, image_bytes)
         return ImageResponse(url=f"/api/uploads/{filename}")
     except Exception as e:
         logger.error(f"Failed to cache generated image: {e}")
@@ -670,7 +674,7 @@ async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] 
             raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
 
         filename = f"{uuid.uuid4()}.mp3"
-        (AUDIO_DIR / filename).write_bytes(audio_bytes)
+        await asyncio.to_thread((AUDIO_DIR / filename).write_bytes, audio_bytes)
         return AudioResponse(url=f"/api/audio/{filename}")
 
     except HTTPException:
@@ -815,19 +819,23 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
+            def _process_image(url, idx):
+                filename = url.split("/")[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
+                    return None
                 img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img = img.resize((width, height), Image.Resampling.BILINEAR)
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+                img.save(processed_path, "JPEG", quality=95)
+                return str(processed_path)
+
+            results = await asyncio.gather(*[asyncio.to_thread(_process_image, url, i) for i, url in enumerate(image_urls)])
+            processed_images = [r for r in results if r is not None]
+            if len(processed_images) < len(image_urls):
+                 raise HTTPException(status_code=404, detail="One or more images not found")
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"
@@ -845,11 +853,13 @@ async def generate_video(
                 await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))
             else:
                 concat_file = temp_path / "concat_list.txt"
-                with open(concat_file, 'w') as f:
-                    for img_path in processed_images:
-                        f.write(f"file '{img_path}'\n")
-                        f.write(f"duration {image_duration}\n")
-                    f.write(f"file '{processed_images[-1]}'\n")
+                def _write_concat():
+                    with open(concat_file, "w") as f:
+                        for img_path in processed_images:
+                            f.write(f"file '{img_path}'\n")
+                            f.write(f"duration {image_duration}\n")
+                        f.write(f"file '{processed_images[-1]}'\n")
+                await asyncio.to_thread(_write_concat)
 
                 video_stream = ffmpeg.input(str(concat_file), format='concat', safe=0).filter('fps', fps=25).filter('format', pix_fmts='yuv420p')
 

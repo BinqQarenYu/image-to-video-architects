@@ -484,8 +484,10 @@ async def upload_images(files: List[UploadFile] = File(...)):
             file_ext = Path(file.filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_ext}"
             file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            def save_file(f, path):
+                with open(path, "wb") as buffer:
+                    shutil.copyfileobj(f.file, buffer)
+            await asyncio.to_thread(save_file, file, file_path)
             uploaded_urls.append(f"/api/uploads/{unique_filename}")
         return {"urls": uploaded_urls}
     except Exception as e:
@@ -512,8 +514,10 @@ async def upload_audio(file: UploadFile = File(...)):
         file_ext = Path(file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = AUDIO_DIR / unique_filename
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        def save_file(f, path):
+            with open(path, "wb") as buffer:
+                shutil.copyfileobj(f.file, buffer)
+        await asyncio.to_thread(save_file, file, file_path)
         return {"url": f"/api/audio/{unique_filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

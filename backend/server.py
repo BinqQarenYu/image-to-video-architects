@@ -486,16 +486,9 @@ async def upload_images(files: List[UploadFile] = File(...)):
 
 @api_router.get("/uploads/{filename}")
 async def get_upload(filename: str):
-    file_path = UPLOADS_DIR / filename
+    file_path = UPLOADS_DIR / os.path.basename(filename.replace("\\", "/"))
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
@@ -512,14 +505,14 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @api_router.get("/audio/{filename}")
 async def get_audio(filename: str):
-    file_path = AUDIO_DIR / filename
+    file_path = AUDIO_DIR / os.path.basename(filename.replace("\\", "/"))
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path)
 
 @api_router.get("/videos/{filename}")
 async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
+    file_path = VIDEOS_DIR / os.path.basename(filename.replace("\\", "/"))
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path, media_type="video/mp4")

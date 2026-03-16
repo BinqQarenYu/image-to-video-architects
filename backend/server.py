@@ -470,16 +470,22 @@ async def root():
 
 @api_router.post("/upload-images")
 async def upload_images(files: List[UploadFile] = File(...)):
+    """Upload multiple images in parallel using asyncio.to_thread."""
     try:
-        uploaded_urls = []
-        for file in files:
+        async def save_file(file: UploadFile):
             file_ext = Path(file.filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_ext}"
             file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            uploaded_urls.append(f"/api/uploads/{unique_filename}")
-        return {"urls": uploaded_urls}
+
+            def sync_save():
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+
+            await asyncio.to_thread(sync_save)
+            return f"/api/uploads/{unique_filename}"
+
+        uploaded_urls = await asyncio.gather(*(save_file(f) for f in files))
+        return {"urls": list(uploaded_urls)}
     except Exception as e:
         logger.error(f"Error uploading images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -489,13 +495,6 @@ async def get_upload(filename: str):
     file_path = UPLOADS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
@@ -815,19 +814,27 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
+
+            async def process_image(idx, url):
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+
+                def sync_process():
+                    img = Image.open(source_path)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # BILINEAR is faster than LANCZOS for video frames with negligible quality loss
+                    img = img.resize((width, height), Image.Resampling.BILINEAR)
+                    processed_path = temp_path / f"image_{idx:04d}.jpg"
+                    img.save(processed_path, 'JPEG', quality=95)
+                    return str(processed_path)
+
+                return await asyncio.to_thread(sync_process)
+
+            # Parallelize image preparation
+            processed_images = await asyncio.gather(*(process_image(idx, url) for idx, url in enumerate(image_urls)))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

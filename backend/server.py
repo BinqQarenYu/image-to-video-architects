@@ -18,6 +18,8 @@ import tempfile
 import httpx
 import base64
 
+import json
+import re
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -145,8 +147,29 @@ class AnimateResponse(BaseModel):
 # ─── Engines ──────────────────────────────────────────────────────────────────
 class ScriptEngine:
     @staticmethod
+    def _parse_json_response(content: str, provider_name: str) -> List[dict]:
+        match = re.search(r"\[.*\]", content, re.DOTALL)
+        if match:
+            content = match.group(0)
+        try:
+            return json.loads(content)
+        except Exception as e:
+            logger.error(f"Failed to parse {provider_name} JSON. Raw content: {content}")
+            raise ValueError(f"{provider_name} returned invalid JSON: {e}")
+
+    @staticmethod
+    async def _call_openai_compatible_api(url: str, model: str, api_key: str, system_msg: str, user_msg: str, timeout: int = 60) -> str:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}], "temperature": 0.8}
+            )
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"].strip()
+
+    @staticmethod
     async def generate_openai(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -154,27 +177,13 @@ class ScriptEngine:
             "'image_prompt' (detailed Midjourney-style image generation prompt). "
             "No markdown, no explanation — raw JSON array only."
         )
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "gpt-4o", "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}], "temperature": 0.8}
-            )
-            r.raise_for_status()
-            content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-            try:
-                return json.loads(content)
-            except Exception as e:
-                logger.error(f"Failed to parse OpenAI JSON. Raw content: {content}")
-                raise ValueError(f"OpenAI returned invalid JSON: {e}")
+        content = await ScriptEngine._call_openai_compatible_api(
+            "https://api.openai.com/v1/chat/completions", "gpt-4o", api_key, system, prompt
+        )
+        return ScriptEngine._parse_json_response(content, "OpenAI")
 
     @staticmethod
     async def generate_grok(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -182,27 +191,13 @@ class ScriptEngine:
             "'image_prompt' (detailed Midjourney-style image generation prompt). "
             "No markdown, no explanation — raw JSON array only."
         )
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.x.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "grok-beta", "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}], "temperature": 0.8}
-            )
-            r.raise_for_status()
-            content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-            try:
-                return json.loads(content)
-            except Exception as e:
-                logger.error(f"Failed to parse Grok JSON. Raw content: {content}")
-                raise ValueError(f"Grok returned invalid JSON: {e}")
+        content = await ScriptEngine._call_openai_compatible_api(
+            "https://api.x.ai/v1/chat/completions", "grok-beta", api_key, system, prompt
+        )
+        return ScriptEngine._parse_json_response(content, "Grok")
 
     @staticmethod
     async def generate_openrouter(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -210,27 +205,13 @@ class ScriptEngine:
             "'image_prompt' (detailed Midjourney-style image generation prompt). "
             "No markdown, no explanation — raw JSON array only."
         )
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "anthropic/claude-3.5-sonnet", "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}], "temperature": 0.8}
-            )
-            r.raise_for_status()
-            content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-            try:
-                return json.loads(content)
-            except Exception as e:
-                logger.error(f"Failed to parse OpenRouter JSON. Raw content: {content}")
-                raise ValueError(f"OpenRouter returned invalid JSON: {e}")
+        content = await ScriptEngine._call_openai_compatible_api(
+            "https://openrouter.ai/api/v1/chat/completions", "anthropic/claude-3.5-sonnet", api_key, system, prompt
+        )
+        return ScriptEngine._parse_json_response(content, "OpenRouter")
 
     @staticmethod
     async def generate_gemini(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
             "Each has 'description' (narration, 1-2 sentences) and 'image_prompt' (Midjourney-style prompt). Raw JSON only."
@@ -242,19 +223,10 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            import re
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-            try:
-                return json.loads(content)
-            except Exception as e:
-                logger.error(f"Failed to parse Gemini JSON. Raw content: {content}")
-                raise ValueError(f"Gemini returned invalid JSON: {e}")
+            return ScriptEngine._parse_json_response(content, "Gemini")
 
     @staticmethod
     async def generate_ollama(prompt: str, num_scenes: int, endpoint: str, model: str) -> List[dict]:
-        import json
         sys_msg = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of {num_scenes} scene objects. "
             "Each has 'description' and 'image_prompt'. Raw JSON only."
@@ -266,16 +238,7 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["message"]["content"].strip()
-            import re
-            match = re.search(r'\[.*\]', content, re.DOTALL)
-            if match:
-                content = match.group(0)
-            try:
-                return json.loads(content)
-            except Exception as e:
-                logger.error(f"Failed to parse Ollama JSON. Raw content: {content}")
-                raise ValueError(f"Ollama returned invalid JSON: {e}")
-
+            return ScriptEngine._parse_json_response(content, "Ollama")
 
 class ImageEngine:
     @staticmethod

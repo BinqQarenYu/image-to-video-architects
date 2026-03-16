@@ -17,6 +17,9 @@ import shutil
 import tempfile
 import httpx
 import base64
+import json
+import re
+import traceback
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -146,7 +149,6 @@ class AnimateResponse(BaseModel):
 class ScriptEngine:
     @staticmethod
     async def generate_openai(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -162,7 +164,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -174,7 +175,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_grok(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -190,7 +190,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -202,7 +201,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_openrouter(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             "You are a cinematic video director. Given a description, generate a structured video script. "
             f"Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
@@ -218,7 +216,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -230,7 +227,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_gemini(prompt: str, num_scenes: int, api_key: str) -> List[dict]:
-        import json
         system = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of exactly {num_scenes} scene objects. "
             "Each has 'description' (narration, 1-2 sentences) and 'image_prompt' (Midjourney-style prompt). Raw JSON only."
@@ -242,7 +238,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -254,7 +249,6 @@ class ScriptEngine:
 
     @staticmethod
     async def generate_ollama(prompt: str, num_scenes: int, endpoint: str, model: str) -> List[dict]:
-        import json
         sys_msg = (
             f"You are a cinematic video director. Return ONLY a valid JSON array of {num_scenes} scene objects. "
             "Each has 'description' and 'image_prompt'. Raw JSON only."
@@ -266,7 +260,6 @@ class ScriptEngine:
             )
             r.raise_for_status()
             content = r.json()["message"]["content"].strip()
-            import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:
                 content = match.group(0)
@@ -390,7 +383,6 @@ class VideoEngine:
     @staticmethod
     async def generate_runway(image_local_path: str, prompt: str, api_key: str) -> str:
         """Task creation → polling → download → return local path"""
-        import base64
         ext = Path(image_local_path).suffix.lstrip(".")
         with open(image_local_path, "rb") as f:
             b64_img = base64.b64encode(f.read()).decode()
@@ -585,7 +577,6 @@ async def generate_script(
         logger.error(f"Script generation timeout: {msg}")
         raise HTTPException(status_code=504, detail=msg)
     except Exception as e:
-        import traceback
         logger.error(f"Script generation error details:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 

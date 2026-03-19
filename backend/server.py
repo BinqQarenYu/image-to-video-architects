@@ -815,19 +815,27 @@ async def generate_video(
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
+
+            async def _prepare_image(idx, url):
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+
+                def _resize_and_save():
+                    img = Image.open(source_path)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # BILINEAR is significantly faster than LANCZOS for large-scale resizing
+                    img = img.resize((width, height), Image.Resampling.BILINEAR)
+                    processed_path = temp_path / f"image_{idx:04d}.jpg"
+                    img.save(processed_path, 'JPEG', quality=95)
+                    return str(processed_path)
+
+                return await asyncio.to_thread(_resize_and_save)
+
+            # Parallelize image processing to utilize all available cores and minimize latency
+            processed_images = await asyncio.gather(*[_prepare_image(i, url) for i, url in enumerate(image_urls)])
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

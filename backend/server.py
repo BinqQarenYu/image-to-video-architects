@@ -42,10 +42,15 @@ except Exception as e:
         def sort(self, *a, **k): return self
         async def to_list(self, length): return []
     class _DummyColl:
-        async def insert_one(self, *a, **k): return None
-        def find(self, *a, **k): return _DummyCursor()
+        async def insert_one(self, *a, **k):
+            return None
+
+        def find(self, *a, **k):
+            return _DummyCursor()
+
         async def delete_one(self, *a, **k):
-            class R: deleted_count = 0
+            class R:
+                deleted_count = 0
             return R()
     class _DummyDB(dict):
         def __getitem__(self, n): return _DummyColl()
@@ -491,13 +496,6 @@ async def get_upload(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
-
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
     try:
@@ -689,10 +687,12 @@ async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends(
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
         
         if request.provider == "minimax":
-            if not keys.minimax: raise HTTPException(status_code=400, detail="Minimax API key required")
+            if not keys.minimax:
+                raise HTTPException(status_code=400, detail="Minimax API key required")
             video_url = await VideoEngine.generate_minimax(str(local_path), request.prompt, keys.minimax)
         elif request.provider == "runway":
-            if not keys.runway: raise HTTPException(status_code=400, detail="Runway API key required")
+            if not keys.runway:
+                raise HTTPException(status_code=400, detail="Runway API key required")
             video_url = await VideoEngine.generate_runway(str(local_path), request.prompt, keys.runway)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown animation provider: {request.provider}")
@@ -774,6 +774,17 @@ async def compile_video(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ─── FFmpeg slideshow ─────────────────────────────────────────────────────────
+def _prepare_image(source_path: Path, target_path: Path, width: int, height: int):
+    """
+    Synchronous image processing: open, convert to RGB, resize, and save.
+    Uses BILINEAR for better performance over LANCZOS for video frames.
+    """
+    img = Image.open(source_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    img = img.resize((width, height), Image.Resampling.BILINEAR)
+    img.save(target_path, 'JPEG', quality=95)
+
 @api_router.post("/generate-video", response_model=VideoGenerateResponse)
 async def generate_video(
     image_urls: List[str] = Form(...),
@@ -816,18 +827,24 @@ async def generate_video(
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             processed_images = []
+            preparation_tasks = []
+
             for idx, url in enumerate(image_urls):
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
                 processed_images.append(str(processed_path))
+
+                # Execute blocking image processing in parallel using to_thread
+                preparation_tasks.append(
+                    asyncio.to_thread(_prepare_image, source_path, processed_path, width, height)
+                )
+
+            if preparation_tasks:
+                await asyncio.gather(*preparation_tasks)
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

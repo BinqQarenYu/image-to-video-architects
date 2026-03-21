@@ -6,7 +6,7 @@ from datetime import datetime
 from PIL import Image
 
 class ArchitectureVideoAPITester:
-    def __init__(self, base_url="https://building-panorama.preview.likhatechbuilder.com"):
+    def __init__(self, base_url="http://localhost:8000"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
@@ -78,7 +78,7 @@ class ArchitectureVideoAPITester:
     def test_api_root(self):
         """Test API root endpoint"""
         success, response = self.run_test("API Root", "GET", "", 200)
-        return success and "Architecture Video Generator API" in str(response)
+        return success and "AI Modular Studio API" in str(response)
 
     def test_upload_single_image(self):
         """Test uploading a single image"""
@@ -299,10 +299,15 @@ class ArchitectureVideoAPITester:
         return success1 and success2 and success3 and success4 and success_audio_err
 
 def main():
-    print("🚀 Starting Architecture Video Generator API Tests")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base_url", default="http://localhost:8000")
+    args = parser.parse_args()
+
+    print(f"🚀 Starting Architecture Video Generator API Tests at {args.base_url}")
     print("=" * 60)
     
-    tester = ArchitectureVideoAPITester()
+    tester = ArchitectureVideoAPITester(base_url=args.base_url)
     
     test_results = [
         tester.test_api_root(),

@@ -1,0 +1,3 @@
+## 2026-03-21 - Parallel Image Processing and Resampling Optimization
+**Learning:** Parallelizing CPU-bound image processing (resizing) and I/O-bound tasks (file saving) using `asyncio.to_thread` and `asyncio.gather` significantly improves throughput. Additionally, switching from `LANCZOS` to `BILINEAR` resampling provides a ~2x speedup per image with acceptable quality for video backgrounds.
+**Action:** Always check for sequential loops performing I/O or image processing and look for opportunities to parallelize using `asyncio.gather`. Consider resampling trade-offs for performance-critical paths.

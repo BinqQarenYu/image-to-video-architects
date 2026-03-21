@@ -42,10 +42,15 @@ except Exception as e:
         def sort(self, *a, **k): return self
         async def to_list(self, length): return []
     class _DummyColl:
-        async def insert_one(self, *a, **k): return None
-        def find(self, *a, **k): return _DummyCursor()
+        async def insert_one(self, *a, **k):
+            return None
+
+        def find(self, *a, **k):
+            return _DummyCursor()
+
         async def delete_one(self, *a, **k):
-            class R: deleted_count = 0
+            class R:
+                deleted_count = 0
             return R()
     class _DummyDB(dict):
         def __getitem__(self, n): return _DummyColl()
@@ -466,19 +471,33 @@ class StockEngine:
 # ─── Basic routes ──────────────────────────────────────────────────────────────
 @api_router.get("/")
 async def root():
-    return {"message": "AI Modular Studio API"}
+    return {"message": "Architecture Video Generator API"}
+
+def _save_upload(file: UploadFile, file_path: Path):
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+def _prepare_image(source_path: Path, target_path: Path, width: int, height: int):
+    """Resizes and converts an image for video processing. Using BILINEAR for speed."""
+    img = Image.open(source_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    # BILINEAR is ~2x faster than LANCZOS for large downscales with minimal quality loss in this context.
+    img = img.resize((width, height), Image.Resampling.BILINEAR)
+    img.save(target_path, 'JPEG', quality=95)
 
 @api_router.post("/upload-images")
 async def upload_images(files: List[UploadFile] = File(...)):
     try:
+        tasks = []
         uploaded_urls = []
         for file in files:
             file_ext = Path(file.filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_ext}"
             file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            tasks.append(asyncio.to_thread(_save_upload, file, file_path))
             uploaded_urls.append(f"/api/uploads/{unique_filename}")
+        await asyncio.gather(*tasks)
         return {"urls": uploaded_urls}
     except Exception as e:
         logger.error(f"Error uploading images: {e}")
@@ -489,13 +508,6 @@ async def get_upload(filename: str):
     file_path = UPLOADS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
@@ -689,10 +701,12 @@ async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends(
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
         
         if request.provider == "minimax":
-            if not keys.minimax: raise HTTPException(status_code=400, detail="Minimax API key required")
+            if not keys.minimax:
+                raise HTTPException(status_code=400, detail="Minimax API key required")
             video_url = await VideoEngine.generate_minimax(str(local_path), request.prompt, keys.minimax)
         elif request.provider == "runway":
-            if not keys.runway: raise HTTPException(status_code=400, detail="Runway API key required")
+            if not keys.runway:
+                raise HTTPException(status_code=400, detail="Runway API key required")
             video_url = await VideoEngine.generate_runway(str(local_path), request.prompt, keys.runway)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown animation provider: {request.provider}")
@@ -816,18 +830,19 @@ async def generate_video(
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             processed_images = []
+            tasks = []
             for idx, url in enumerate(image_urls):
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
+                tasks.append(asyncio.to_thread(_prepare_image, source_path, processed_path, width, height))
                 processed_images.append(str(processed_path))
+
+            # Process all images in parallel
+            await asyncio.gather(*tasks)
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

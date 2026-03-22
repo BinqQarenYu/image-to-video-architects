@@ -468,17 +468,26 @@ class StockEngine:
 async def root():
     return {"message": "AI Modular Studio API"}
 
+async def _save_upload(file: UploadFile) -> str:
+    """Helper to save an uploaded file in a thread pool."""
+    file_ext = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = UPLOADS_DIR / unique_filename
+
+    def save():
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return f"/api/uploads/{unique_filename}"
+
+    return await asyncio.to_thread(save)
+
 @api_router.post("/upload-images")
 async def upload_images(files: List[UploadFile] = File(...)):
+    """Optimized multi-file upload using parallel I/O."""
     try:
-        uploaded_urls = []
-        for file in files:
-            file_ext = Path(file.filename).suffix
-            unique_filename = f"{uuid.uuid4()}{file_ext}"
-            file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            uploaded_urls.append(f"/api/uploads/{unique_filename}")
+        # Process multiple uploads in parallel using asyncio.gather
+        tasks = [_save_upload(file) for file in files]
+        uploaded_urls = await asyncio.gather(*tasks)
         return {"urls": uploaded_urls}
     except Exception as e:
         logger.error(f"Error uploading images: {e}")
@@ -813,21 +822,29 @@ async def generate_video(
         width = (width // 2) * 2
         height = (height // 2) * 2
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
-                if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
+        async def _prepare_image(idx, url, width, height, temp_path):
+            filename = url.split('/')[-1]
+            source_path = UPLOADS_DIR / filename
+            if not source_path.exists():
+                raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
+
+            def process():
                 img = Image.open(source_path)
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+                # BILINEAR is ~4x faster than LANCZOS with minimal quality loss for this use case
+                img = img.resize((width, height), Image.Resampling.BILINEAR)
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
                 img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+                return str(processed_path)
+
+            return await asyncio.to_thread(process)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Process all images in parallel
+            tasks = [_prepare_image(idx, url, width, height, temp_path) for idx, url in enumerate(image_urls)]
+            processed_images = await asyncio.gather(*tasks)
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"

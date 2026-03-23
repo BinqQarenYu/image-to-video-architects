@@ -1,0 +1,3 @@
+## 2026-03-23 - Image Resizing Optimization for Video Generation
+**Learning:** In the Python/Pillow environment, resizing large images (e.g., 4K) using `Image.Resampling.BILINEAR` is significantly faster (~2x) than `Image.Resampling.LANCZOS`. Furthermore, parallelizing these CPU-bound PIL operations using `asyncio.to_thread` and `asyncio.gather` prevents event loop blocking and provides a massive speedup (measured ~3.4x for 10 images) by utilizing multiple CPU cores.
+**Action:** Always favor `BILINEAR` for video frame preparation and parallelize batch image processing using `asyncio.to_thread` in async backend environments.

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
@@ -425,9 +426,14 @@ export const Studio = () => {
       <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} aria-label="Go Back" className="text-white/60 hover:text-white hover:bg-white/10">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Go Back</TooltipContent>
+            </Tooltip>
             <h1 className="text-2xl font-bold font-['Manrope']">Video Studio</h1>
           </div>
 
@@ -533,24 +539,35 @@ export const Studio = () => {
                       )}
                       {/* Animate button (visible in animated mode) */}
                       {renderMode === 'animated' && !img.videoUrl && (
-                        <button
-                          onClick={() => generateSceneVideo(img)}
-                          className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-bold gap-1"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-[#FF4D00] flex items-center justify-center shadow-lg">
-                            <Sparkles className="w-4 h-4 text-white" />
-                          </div>
-                          Animate
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => generateSceneVideo(img)}
+                              aria-label="Animate with AI"
+                              className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-bold gap-1"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-[#FF4D00] flex items-center justify-center shadow-lg">
+                                <Sparkles className="w-4 h-4 text-white" />
+                              </div>
+                              Animate
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Animate with AI</TooltipContent>
+                        </Tooltip>
                       )}
-                      <button
-                        data-testid={`remove-image-${index}`}
-                        aria-label="Remove image"
-                        onClick={() => removeImage(img.id)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            data-testid={`remove-image-${index}`}
+                            aria-label="Remove image"
+                            onClick={() => removeImage(img.id)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove Image</TooltipContent>
+                      </Tooltip>
                     </div>
                   ))}
                 </div>
@@ -638,9 +655,14 @@ export const Studio = () => {
                                 <Sparkles className="w-3 h-3 mr-1" />Generate Image
                               </Button>
                             )}
-                            <Button variant="ghost" onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded">
-                              <X className="w-3 h-3" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))} aria-label="Remove scene" className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded">
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Remove Scene</TooltipContent>
+                            </Tooltip>
                           </div>
                         </div>
                         <p className="text-xs text-white/80 mb-2 leading-relaxed">{scene.description}</p>
@@ -805,9 +827,14 @@ export const Studio = () => {
                         </div>
                         <span className="text-sm truncate text-white/80">{audioFile.name}</span>
                       </div>
-                      <button onClick={removeAudio} className="text-white/40 hover:text-red-500 transition-colors p-1">
-                        <X className="w-4 h-4" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button onClick={removeAudio} aria-label="Remove audio" className="text-white/40 hover:text-red-500 transition-colors p-1">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove Audio</TooltipContent>
+                      </Tooltip>
                     </div>
                   ) : (
                     <div className="relative">
@@ -843,12 +870,18 @@ export const Studio = () => {
                       {stockResults.map((v) => (
                         <div key={v.id} className="relative aspect-video rounded-md overflow-hidden bg-white/5 group border border-transparent hover:border-[#FF4D00] transition-all">
                           <img src={v.thumbnail} alt="Stock tumbnail" className="w-full h-full object-cover" />
-                          <button
-                            onClick={() => importStockVideo(v)}
-                            className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <PlusCircle className="w-6 h-6 text-white" />
-                          </button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => importStockVideo(v)}
+                                aria-label="Import stock video"
+                                className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <PlusCircle className="w-6 h-6 text-white" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Import Stock Video</TooltipContent>
+                          </Tooltip>
                           <div className="absolute bottom-0 right-0 bg-black/60 px-1 text-[8px] text-white/60">
                             {v.duration}s
                           </div>

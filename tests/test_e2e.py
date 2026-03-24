@@ -8,7 +8,7 @@ def run_tests():
         response = urllib.request.urlopen("http://127.0.0.1:8000/api/")
         html = response.read().decode('utf-8')
         assert response.status == 200, f"Expected 200, got {response.status}"
-        assert "Architecture Video Generator API" in html
+        assert "AI Modular Studio API" in html
         print("Backend is up and running.")
     except Exception as e:
         print(f"Backend test failed: {e}")

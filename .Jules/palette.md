@@ -5,3 +5,7 @@
 ## 2025-05-14 - [Icon-Only Button Accessibility]
 **Learning:** Icon-only buttons (e.g., Lucide-react icons used inside a button tag) are completely invisible to screen readers without an explicit aria-label.
 **Action:** Audit all icon-only buttons and ensure they have descriptive aria-labels.
+
+## 2025-05-14 - [Nesting Radix Triggers with asChild]
+**Learning:** When nesting multiple Radix UI triggers (e.g., a `TooltipTrigger` wrapping an `AlertDialogTrigger`), both MUST use the `asChild` prop to avoid rendering nested button elements, which is invalid HTML and breaks accessibility.
+**Action:** Always use `asChild` on both triggers when nesting a `Tooltip` with another interactive component like a `Dialog` or `AlertDialog`.

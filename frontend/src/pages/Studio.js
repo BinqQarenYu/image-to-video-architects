@@ -7,6 +7,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Slider } from '../components/ui/slider';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ApiSettingsModal } from '../components/ApiSettingsModal';
@@ -543,14 +544,19 @@ export const Studio = () => {
                           Animate
                         </button>
                       )}
-                      <button
-                        data-testid={`remove-image-${index}`}
-                        aria-label="Remove image"
-                        onClick={() => removeImage(img.id)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            data-testid={`remove-image-${index}`}
+                            aria-label="Remove image"
+                            onClick={() => removeImage(img.id)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove from rack</TooltipContent>
+                      </Tooltip>
                     </div>
                   ))}
                 </div>
@@ -638,9 +644,19 @@ export const Studio = () => {
                                 <Sparkles className="w-3 h-3 mr-1" />Generate Image
                               </Button>
                             )}
-                            <Button variant="ghost" onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded">
-                              <X className="w-3 h-3" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  aria-label="Delete scene"
+                                  onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))}
+                                  className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded"
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete scene</TooltipContent>
+                            </Tooltip>
                           </div>
                         </div>
                         <p className="text-xs text-white/80 mb-2 leading-relaxed">{scene.description}</p>
@@ -805,9 +821,18 @@ export const Studio = () => {
                         </div>
                         <span className="text-sm truncate text-white/80">{audioFile.name}</span>
                       </div>
-                      <button onClick={removeAudio} className="text-white/40 hover:text-red-500 transition-colors p-1">
-                        <X className="w-4 h-4" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            aria-label="Remove audio"
+                            onClick={removeAudio}
+                            className="text-white/40 hover:text-red-500 transition-colors p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove audio</TooltipContent>
+                      </Tooltip>
                     </div>
                   ) : (
                     <div className="relative">

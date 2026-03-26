@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { Landing } from './pages/Landing';
 import { Studio } from './pages/Studio';
 import { ProjectLibrary } from './pages/ProjectLibrary';
@@ -8,14 +9,16 @@ import './App.css';
 function App() {
   return (
     <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/studio" element={<Studio />} />
-          <Route path="/projects" element={<ProjectLibrary />} />
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-right" theme="dark" />
+      <TooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/studio" element={<Studio />} />
+            <Route path="/projects" element={<ProjectLibrary />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-right" theme="dark" />
+      </TooltipProvider>
 
       {/* LikhaTech branding badge */}
       <a

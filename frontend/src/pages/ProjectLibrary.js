@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Play, Trash2, Calendar, Clock, Layout, Film } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -68,14 +69,19 @@ export const ProjectLibrary = () => {
             <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Button
-                            data-testid="back-btn"
-                            variant="ghost"
-                            onClick={() => navigate('/studio')}
-                            className="text-white/60 hover:text-white hover:bg-white/10"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    data-testid="back-btn"
+                                    variant="ghost"
+                                    onClick={() => navigate('/studio')}
+                                    className="text-white/60 hover:text-white hover:bg-white/10"
+                                >
+                                    <ArrowLeft className="w-5 h-5" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Back to Studio</TooltipContent>
+                        </Tooltip>
                         <h1 className="text-2xl font-bold font-['Manrope']">Project Library</h1>
                     </div>
                     <Button
@@ -132,14 +138,19 @@ export const ProjectLibrary = () => {
                                     )}
                                     <div className="absolute top-3 right-3 flex gap-2">
                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <button
-                                                    aria-label="Delete project"
-                                                    className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </AlertDialogTrigger>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <AlertDialogTrigger asChild>
+                                                        <button
+                                                            aria-label="Delete project"
+                                                            className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </AlertDialogTrigger>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Delete project</TooltipContent>
+                                            </Tooltip>
                                             <AlertDialogContent className="bg-[#1A1A1A] border-white/10 text-white">
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

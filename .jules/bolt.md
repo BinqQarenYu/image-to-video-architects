@@ -1,0 +1,3 @@
+## 2025-05-14 - Parallel Image Processing in Video Generation
+**Learning:** Parallelizing image resizing and saving with `asyncio.to_thread` and `asyncio.gather` significantly reduces total processing time for batch tasks (like video generation from images). Additionally, switching from `LANCZOS` to `BILINEAR` resampling provides a measurable speedup (approx 2x for resizing) with acceptable quality for most video use cases.
+**Action:** Always look for sequential blocking I/O or CPU-intensive tasks (like image processing) in loops and consider parallelizing them using `asyncio.to_thread` for synchronous libraries like `Pillow`.

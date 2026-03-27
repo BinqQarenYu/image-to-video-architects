@@ -824,7 +824,8 @@ async def generate_video(
                 img = Image.open(source_path)
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+                # Performance: Using BILINEAR for faster resizing with minimal visual impact in final video
+                img = img.resize((width, height), Image.Resampling.BILINEAR)
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
                 img.save(processed_path, 'JPEG', quality=95)
                 processed_images.append(str(processed_path))
@@ -839,7 +840,8 @@ async def generate_video(
                     ffmpeg
                     .input(processed_images[0], loop=1, t=image_duration)
                     .filter('zoompan', z='min(zoom+0.0015,1.5)', d=int(image_duration * 25), s=f'{width}x{height}')
-                    .output(str(output_path), vcodec='libx264', pix_fmt='yuv420p', r=25, preset='ultrafast', crf=23)
+                    # Performance: 'superfast' preset provides better compression and quality than 'ultrafast' with minimal speed penalty
+                    .output(str(output_path), vcodec='libx264', pix_fmt='yuv420p', r=25, preset='superfast', crf=23)
                     .overwrite_output()
                 )
                 await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))
@@ -860,21 +862,24 @@ async def generate_video(
                         audio_stream = ffmpeg.input(str(audio_path))
                         stream = (
                             ffmpeg
-                            .output(video_stream, audio_stream, str(output_path), vcodec='libx264', acodec='aac', preset='ultrafast', crf=23, shortest=None)
+                            # Performance: 'superfast' preset provides better compression and quality than 'ultrafast' with minimal speed penalty
+                            .output(video_stream, audio_stream, str(output_path), vcodec='libx264', acodec='aac', preset='superfast', crf=23, shortest=None)
                             .overwrite_output()
                         )
                         await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))
                     else:
                         stream = (
                             video_stream
-                            .output(str(output_path), vcodec='libx264', preset='ultrafast', crf=23)
+                            # Performance: 'superfast' preset provides better compression and quality than 'ultrafast' with minimal speed penalty
+                            .output(str(output_path), vcodec='libx264', preset='superfast', crf=23)
                             .overwrite_output()
                         )
                         await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))
                 else:
                     stream = (
                         video_stream
-                        .output(str(output_path), vcodec='libx264', preset='ultrafast', crf=23)
+                        # Performance: 'superfast' preset provides better compression and quality than 'ultrafast' with minimal speed penalty
+                        .output(str(output_path), vcodec='libx264', preset='superfast', crf=23)
                         .overwrite_output()
                     )
                     await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))

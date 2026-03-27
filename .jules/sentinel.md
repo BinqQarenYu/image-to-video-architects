@@ -1,0 +1,4 @@
+## 2025-05-15 - [Path Traversal in Asset Serving]
+**Vulnerability:** User-provided `filename` parameters in API endpoints (`/uploads/{filename}`, `/audio/{filename}`, `/videos/{filename}`) were used to construct absolute file paths on the server without sanitization. This allowed attackers to use directory traversal sequences (e.g., `../../.env`) to access sensitive files outside the intended directories.
+**Learning:** Using `Path(filename)` directly with user input is dangerous because it preserves directory navigation components. The `Path.name` property is a reliable way to extract only the base filename, effectively neutralizing traversal attempts.
+**Prevention:** Always sanitize filenames from user input using `Path(filename).name` (or equivalent) when accessing the local filesystem. Additionally, verify that the resulting file exists within the expected parent directory.

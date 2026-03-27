@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, AsyncMock
 import ffmpeg
 from PIL import Image
 import shutil
@@ -38,19 +39,23 @@ try:
     db = client[db_name]
 except Exception as e:
     logging.getLogger(__name__).error(f"Could not connect to MongoDB: {e}")
-    class _DummyCursor:
-        def sort(self, *a, **k): return self
-        async def to_list(self, length): return []
-    class _DummyColl:
-        async def insert_one(self, *a, **k): return None
-        def find(self, *a, **k): return _DummyCursor()
-        async def delete_one(self, *a, **k):
-            class R: deleted_count = 0
-            return R()
-    class _DummyDB(dict):
-        def __getitem__(self, n): return _DummyColl()
-        def __getattr__(self, n): return _DummyColl()
-    db = _DummyDB()
+    # Use mocks to emulate Motor/MongoDB interface when offline
+    db = MagicMock()
+    # Configure projects collection
+    projects = MagicMock()
+    db.projects = projects
+    db.__getitem__.return_value = projects
+    # Mock insert_one
+    projects.insert_one = AsyncMock(return_value=None)
+    # Mock delete_one
+    delete_result = MagicMock()
+    delete_result.deleted_count = 0
+    projects.delete_one = AsyncMock(return_value=delete_result)
+    # Mock find().sort().to_list()
+    cursor = MagicMock()
+    cursor.sort.return_value = cursor
+    cursor.to_list = AsyncMock(return_value=[])
+    projects.find.return_value = cursor
 
 # Directories
 UPLOADS_DIR = ROOT_DIR / 'uploads'
@@ -491,12 +496,6 @@ async def get_upload(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
@@ -689,10 +688,12 @@ async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends(
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
         
         if request.provider == "minimax":
-            if not keys.minimax: raise HTTPException(status_code=400, detail="Minimax API key required")
+            if not keys.minimax:
+                raise HTTPException(status_code=400, detail="Minimax API key required")
             video_url = await VideoEngine.generate_minimax(str(local_path), request.prompt, keys.minimax)
         elif request.provider == "runway":
-            if not keys.runway: raise HTTPException(status_code=400, detail="Runway API key required")
+            if not keys.runway:
+                raise HTTPException(status_code=400, detail="Runway API key required")
             video_url = await VideoEngine.generate_runway(str(local_path), request.prompt, keys.runway)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown animation provider: {request.provider}")

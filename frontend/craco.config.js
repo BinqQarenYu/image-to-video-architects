@@ -34,13 +34,7 @@ if (config.enableHealthCheck) {
 
 const webpackConfig = {
   eslint: {
-    configure: {
-      extends: ["plugin:react-hooks/recommended"],
-      rules: {
-        "react-hooks/rules-of-hooks": "error",
-        "react-hooks/exhaustive-deps": "warn",
-      },
-    },
+    enable: false, // Disabled due to ESLint v9+ compatibility issues with Craco/webpack-plugin
   },
   webpack: {
     alias: {

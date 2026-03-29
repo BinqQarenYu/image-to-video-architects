@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { Landing } from './pages/Landing';
 import { Studio } from './pages/Studio';
 import { ProjectLibrary } from './pages/ProjectLibrary';
@@ -7,7 +8,7 @@ import './App.css';
 
 function App() {
   return (
-    <>
+    <TooltipProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -18,7 +19,14 @@ function App() {
       <Toaster position="top-right" theme="dark" />
 
       {/* LikhaTech branding badge */}
-      <a
+      <BrandingBadge />
+    </TooltipProvider>
+  );
+}
+
+const BrandingBadge = () => {
+  return (
+    <a
         href="https://likhatechbuilder.com"
         target="_blank"
         rel="noopener noreferrer"
@@ -49,8 +57,7 @@ function App() {
         <span style={{ color: '#FF4D00', fontSize: '14px' }}>⚡</span>
         Made by LikhaTech
       </a>
-    </>
   );
-}
+};
 
 export default App;

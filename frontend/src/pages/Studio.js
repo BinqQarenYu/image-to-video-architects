@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
@@ -425,9 +426,14 @@ export const Studio = () => {
       <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10" aria-label="Back to Home">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to Home</TooltipContent>
+            </Tooltip>
             <h1 className="text-2xl font-bold font-['Manrope']">Video Studio</h1>
           </div>
 
@@ -543,14 +549,19 @@ export const Studio = () => {
                           Animate
                         </button>
                       )}
-                      <button
-                        data-testid={`remove-image-${index}`}
-                        aria-label="Remove image"
-                        onClick={() => removeImage(img.id)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            data-testid={`remove-image-${index}`}
+                            aria-label="Remove image"
+                            onClick={() => removeImage(img.id)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove Image</TooltipContent>
+                      </Tooltip>
                     </div>
                   ))}
                 </div>
@@ -587,14 +598,19 @@ export const Studio = () => {
                   onChange={(e) => setPrompt(e.target.value)}
                   className="bg-[#111] border-white/10 focus:border-[#FF4D00]/50 text-white placeholder:text-white/30 rounded-lg min-h-[96px] resize-none pb-12"
                 />
-                <Button
-                  onClick={handleGenerateScript}
-                  disabled={isGeneratingScript || !prompt.trim()}
-                  className="absolute bottom-2 right-2 h-8 text-xs bg-white/10 hover:bg-white/20 text-white rounded-md"
-                >
-                  {isGeneratingScript ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1.5" />}
-                  Generate Script
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleGenerateScript}
+                      disabled={isGeneratingScript || !prompt.trim()}
+                      className="absolute bottom-2 right-2 h-8 text-xs bg-white/10 hover:bg-white/20 text-white rounded-md"
+                    >
+                      {isGeneratingScript ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1.5" />}
+                      Generate Script
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Generate AI Script</TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Script scenes */}

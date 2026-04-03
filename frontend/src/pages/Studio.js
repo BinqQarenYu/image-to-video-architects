@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
@@ -425,32 +426,65 @@ export const Studio = () => {
       <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button data-testid="back-btn" aria-label="Back to Home" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to Home</TooltipContent>
+            </Tooltip>
             <h1 className="text-2xl font-bold font-['Manrope']">Video Studio</h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <Button onClick={() => navigate('/projects')} variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black transition-colors">
-              <Film className="w-4 h-4 mr-2" />Library
-            </Button>
-            <Button onClick={() => setIsApiModalOpen(true)} variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black transition-colors">
-              <Settings className="w-4 h-4 mr-2" />API Settings
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => navigate('/projects')} aria-label="View Project Library" variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black transition-colors">
+                  <Film className="w-4 h-4 mr-2" />Library
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View Project Library</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => setIsApiModalOpen(true)} aria-label="Configure AI Providers" variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black transition-colors">
+                  <Settings className="w-4 h-4 mr-2" />API Settings
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Configure AI Providers</TooltipContent>
+            </Tooltip>
+
             {videoUrl && (
-              <Button data-testid="download-btn" onClick={handleDownload} variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black">
-                <Download className="w-4 h-4 mr-2" />Download
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button data-testid="download-btn" aria-label="Download generated video" onClick={handleDownload} variant="outline" className="rounded-full border border-white/20 bg-transparent text-white hover:bg-white hover:text-black">
+                    <Download className="w-4 h-4 mr-2" />Download
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Download generated video</TooltipContent>
+              </Tooltip>
             )}
-            <Button
-              data-testid="generate-video-btn"
-              onClick={handleGenerateVideo}
-              disabled={images.length === 0 || generating}
-              className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="inline-block">
+                  <Button
+                    data-testid="generate-video-btn"
+                    onClick={handleGenerateVideo}
+                    disabled={images.length === 0 || generating}
+                    className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {generating ? "Video generation in progress..." :
+                 images.length === 0 ? "Add at least one image to generate video" :
+                 "Compile images into a cinematic video"}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>

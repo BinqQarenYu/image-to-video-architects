@@ -491,13 +491,6 @@ async def get_upload(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(file_path)
-
 @api_router.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
     try:
@@ -722,7 +715,9 @@ async def compile_video(
                 if not vpath.exists():
                     raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
                 lines.append(f"file '{vpath}'\n")
-            concat_file.write_text("".join(lines))
+
+            # Optimization: Offload blocking I/O to a thread
+            await asyncio.to_thread(concat_file.write_text, "".join(lines))
 
             output_filename = f"{uuid.uuid4()}.mp4"
             output_path = VIDEOS_DIR / output_filename
@@ -813,21 +808,32 @@ async def generate_video(
         width = (width // 2) * 2
         height = (height // 2) * 2
 
+        def _prepare_image(url, idx, target_w, target_h, temp_p):
+            filename = url.split('/')[-1]
+            source_path = UPLOADS_DIR / filename
+            if not source_path.exists():
+                raise FileNotFoundError(f"Image not found: {filename}")
+            img = Image.open(source_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            # Optimization: BILINEAR is significantly faster than LANCZOS for video frames
+            img = img.resize((target_w, target_h), Image.Resampling.BILINEAR)
+            processed_path = temp_p / f"image_{idx:04d}.jpg"
+            img.save(processed_path, 'JPEG', quality=95)
+            return str(processed_path)
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            processed_images = []
-            for idx, url in enumerate(image_urls):
-                filename = url.split('/')[-1]
-                source_path = UPLOADS_DIR / filename
-                if not source_path.exists():
-                    raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-                processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
-                processed_images.append(str(processed_path))
+
+            # Parallelize image preparation to reduce processing time for multi-image videos
+            tasks = [
+                asyncio.to_thread(_prepare_image, url, idx, width, height, temp_path)
+                for idx, url in enumerate(image_urls)
+            ]
+            try:
+                processed_images = await asyncio.gather(*tasks)
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"
@@ -845,11 +851,15 @@ async def generate_video(
                 await asyncio.to_thread(lambda: stream.run(capture_stdout=True, capture_stderr=True))
             else:
                 concat_file = temp_path / "concat_list.txt"
-                with open(concat_file, 'w') as f:
-                    for img_path in processed_images:
-                        f.write(f"file '{img_path}'\n")
-                        f.write(f"duration {image_duration}\n")
-                    f.write(f"file '{processed_images[-1]}'\n")
+                # Optimization: Offload blocking I/O to a thread
+                def _write_concat_file(path, imgs, duration):
+                    with open(path, 'w') as f:
+                        for img_path in imgs:
+                            f.write(f"file '{img_path}'\n")
+                            f.write(f"duration {duration}\n")
+                        f.write(f"file '{imgs[-1]}'\n")
+
+                await asyncio.to_thread(_write_concat_file, str(concat_file), processed_images, image_duration)
 
                 video_stream = ffmpeg.input(str(concat_file), format='concat', safe=0).filter('fps', fps=25).filter('format', pix_fmts='yuv420p')
 

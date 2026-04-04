@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../components/ui/tooltip"
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
@@ -425,9 +430,14 @@ export const Studio = () => {
       <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10" aria-label="Back to Home">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to Home</TooltipContent>
+            </Tooltip>
             <h1 className="text-2xl font-bold font-['Manrope']">Video Studio</h1>
           </div>
 
@@ -443,14 +453,23 @@ export const Studio = () => {
                 <Download className="w-4 h-4 mr-2" />Download
               </Button>
             )}
-            <Button
-              data-testid="generate-video-btn"
-              onClick={handleGenerateVideo}
-              disabled={images.length === 0 || generating}
-              className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    data-testid="generate-video-btn"
+                    onClick={handleGenerateVideo}
+                    disabled={images.length === 0 || generating}
+                    className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {images.length === 0 ? "Add at least one image to generate video" : "Generate cinematic architecture video"}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -543,14 +562,19 @@ export const Studio = () => {
                           Animate
                         </button>
                       )}
-                      <button
-                        data-testid={`remove-image-${index}`}
-                        aria-label="Remove image"
-                        onClick={() => removeImage(img.id)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            data-testid={`remove-image-${index}`}
+                            aria-label="Remove image"
+                            onClick={() => removeImage(img.id)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#FF4D00]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove scene</TooltipContent>
+                      </Tooltip>
                     </div>
                   ))}
                 </div>
@@ -805,9 +829,18 @@ export const Studio = () => {
                         </div>
                         <span className="text-sm truncate text-white/80">{audioFile.name}</span>
                       </div>
-                      <button onClick={removeAudio} className="text-white/40 hover:text-red-500 transition-colors p-1">
-                        <X className="w-4 h-4" />
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={removeAudio}
+                            aria-label="Remove audio"
+                            className="text-white/40 hover:text-red-500 transition-colors p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove audio</TooltipContent>
+                      </Tooltip>
                     </div>
                   ) : (
                     <div className="relative">

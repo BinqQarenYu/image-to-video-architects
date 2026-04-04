@@ -93,6 +93,7 @@ export const ApiSettingsModal = ({ isOpen, onClose }) => {
                         </div>
                         <button
                             onClick={onClose}
+                            aria-label="Close settings"
                             className="p-1 transition-colors rounded-full text-white/50 hover:text-white hover:bg-white/10"
                         >
                             <X className="w-5 h-5" />

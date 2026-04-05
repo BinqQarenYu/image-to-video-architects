@@ -10,6 +10,7 @@ import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ApiSettingsModal } from '../components/ApiSettingsModal';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api`;
@@ -443,14 +444,23 @@ export const Studio = () => {
                 <Download className="w-4 h-4 mr-2" />Download
               </Button>
             )}
-            <Button
-              data-testid="generate-video-btn"
-              onClick={handleGenerateVideo}
-              disabled={images.length === 0 || generating}
-              className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    data-testid="generate-video-btn"
+                    onClick={handleGenerateVideo}
+                    disabled={images.length === 0 || generating}
+                    className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {generating ? "Generation in progress..." : images.length === 0 ? "Add at least one image to generate video" : "Create cinematic video"}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -805,7 +815,11 @@ export const Studio = () => {
                         </div>
                         <span className="text-sm truncate text-white/80">{audioFile.name}</span>
                       </div>
-                      <button onClick={removeAudio} className="text-white/40 hover:text-red-500 transition-colors p-1">
+                      <button
+                        aria-label="Remove audio"
+                        onClick={removeAudio}
+                        className="text-white/40 hover:text-red-500 transition-colors p-1"
+                      >
                         <X className="w-4 h-4" />
                       </button>
                     </div>

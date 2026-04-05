@@ -92,6 +92,7 @@ export const ApiSettingsModal = ({ isOpen, onClose }) => {
                             <h2 className="text-xl font-bold font-['Manrope'] text-white">AI Provider Settings</h2>
                         </div>
                         <button
+                            aria-label="Close settings"
                             onClick={onClose}
                             className="p-1 transition-colors rounded-full text-white/50 hover:text-white hover:bg-white/10"
                         >

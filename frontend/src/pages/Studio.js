@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Play, ArrowLeft, Download, Loader2, Settings, Sparkles, Film, Music, PlusCircle, Database } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
@@ -443,14 +444,25 @@ export const Studio = () => {
                 <Download className="w-4 h-4 mr-2" />Download
               </Button>
             )}
-            <Button
-              data-testid="generate-video-btn"
-              onClick={handleGenerateVideo}
-              disabled={images.length === 0 || generating}
-              className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    data-testid="generate-video-btn"
+                    onClick={handleGenerateVideo}
+                    disabled={images.length === 0 || generating}
+                    className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {images.length === 0 && !generating && (
+                <TooltipContent className="bg-[#1A1A1A] border border-white/10 text-white">
+                  <p>Add at least one image to generate video</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
       </header>

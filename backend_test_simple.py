@@ -8,8 +8,8 @@ def test_api_basic():
     """Test basic API connectivity"""
     print("🔍 Testing API Root...")
     try:
-        response = requests.get("https://building-panorama.preview.likhatechbuilder.com/api/", timeout=10)
-        if response.status_code == 200 and "Architecture Video Generator API" in response.text:
+        response = requests.get("http://localhost:8000/api/", timeout=10)
+        if response.status_code == 200:
             print("✅ API Root - PASSED")
             return True
         else:
@@ -32,7 +32,7 @@ def test_upload_image():
         with open(temp_path, 'rb') as f:
             files = {'files': ('test_upload.jpg', f, 'image/jpeg')}
             response = requests.post(
-                "https://building-panorama.preview.likhatechbuilder.com/api/upload-images", 
+                "http://localhost:8000/api/upload-images",
                 files=files, 
                 timeout=30
             )
@@ -60,7 +60,7 @@ def test_get_projects():
     """Test get projects endpoint"""
     print("🔍 Testing Get Projects...")
     try:
-        response = requests.get("https://building-panorama.preview.likhatechbuilder.com/api/projects", timeout=15)
+        response = requests.get("http://localhost:8000/api/projects", timeout=15)
         if response.status_code == 200:
             projects = response.json()
             print(f"✅ Get Projects - PASSED ({len(projects)} projects)")

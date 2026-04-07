@@ -89,7 +89,7 @@ export const ProjectLibrary = () => {
 
             <div className="max-w-7xl mx-auto px-6 py-12">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center min-h(\[400px\])">
+                    <div className="flex flex-col items-center justify-center min-h-[400px]">
                         <Loader2 className="w-12 h-12 text-[#FF4D00] animate-spin mb-4" />
                         <p className="text-white/60">Loading your projects...</p>
                     </div>

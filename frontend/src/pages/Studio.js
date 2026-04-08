@@ -7,6 +7,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Slider } from '../components/ui/slider';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ApiSettingsModal } from '../components/ApiSettingsModal';
@@ -425,7 +426,7 @@ export const Studio = () => {
       <header className="border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button data-testid="back-btn" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
+            <Button data-testid="back-btn" aria-label="Back to home" variant="ghost" onClick={() => navigate('/')} className="text-white/60 hover:text-white hover:bg-white/10">
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <h1 className="text-2xl font-bold font-['Manrope']">Video Studio</h1>
@@ -443,14 +444,25 @@ export const Studio = () => {
                 <Download className="w-4 h-4 mr-2" />Download
               </Button>
             )}
-            <Button
-              data-testid="generate-video-btn"
-              onClick={handleGenerateVideo}
-              disabled={images.length === 0 || generating}
-              className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={images.length === 0 ? "cursor-not-allowed" : ""}>
+                  <Button
+                    data-testid="generate-video-btn"
+                    onClick={handleGenerateVideo}
+                    disabled={images.length === 0 || generating}
+                    className="rounded-full font-semibold bg-[#FF4D00] text-white hover:bg-[#FF4D00]/90 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Generate Video</>}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {images.length === 0 && (
+                <TooltipContent>
+                  <p>Add at least one image to generate video</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -638,7 +650,7 @@ export const Studio = () => {
                                 <Sparkles className="w-3 h-3 mr-1" />Generate Image
                               </Button>
                             )}
-                            <Button variant="ghost" onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded">
+                            <Button variant="ghost" aria-label="Remove scene" onClick={() => setScriptScenes(scriptScenes.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all rounded">
                               <X className="w-3 h-3" />
                             </Button>
                           </div>
@@ -805,7 +817,7 @@ export const Studio = () => {
                         </div>
                         <span className="text-sm truncate text-white/80">{audioFile.name}</span>
                       </div>
-                      <button onClick={removeAudio} className="text-white/40 hover:text-red-500 transition-colors p-1">
+                      <button onClick={removeAudio} aria-label="Remove audio" className="text-white/40 hover:text-red-500 transition-colors p-1">
                         <X className="w-4 h-4" />
                       </button>
                     </div>

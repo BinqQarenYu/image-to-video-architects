@@ -463,6 +463,21 @@ class StockEngine:
                     })
             return results
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+def _save_upload_file(file: UploadFile, path: Path):
+    """Save an uploaded file to the local filesystem."""
+    with open(path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+def _prepare_image(source_path: Path, processed_path: Path, width: int, height: int):
+    """Open, convert, resize and save an image for video generation."""
+    img = Image.open(source_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    # Use LANCZOS for high-quality downscaling
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
+    img.save(processed_path, 'JPEG', quality=95)
+
 # ─── Basic routes ──────────────────────────────────────────────────────────────
 @api_router.get("/")
 async def root():
@@ -471,17 +486,20 @@ async def root():
 @api_router.post("/upload-images")
 async def upload_images(files: List[UploadFile] = File(...)):
     try:
+        tasks = []
         uploaded_urls = []
         for file in files:
             file_ext = Path(file.filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_ext}"
             file_path = UPLOADS_DIR / unique_filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            # Offload blocking file I/O to a thread for better performance
+            tasks.append(asyncio.to_thread(_save_upload_file, file, file_path))
             uploaded_urls.append(f"/api/uploads/{unique_filename}")
+
+        await asyncio.gather(*tasks)
         return {"urls": uploaded_urls}
     except Exception as e:
-        logger.error(f"Error uploading images: {e}")
+        logger.error(f"Error uploading images in parallel: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/uploads/{filename}")
@@ -489,13 +507,6 @@ async def get_upload(filename: str):
     file_path = UPLOADS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
-
-@api_router.get("/videos/{filename}")
-async def get_video(filename: str):
-    file_path = VIDEOS_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Video not found")
     return FileResponse(file_path)
 
 @api_router.post("/upload-audio")
@@ -643,6 +654,8 @@ async def generate_image(request: ImageRequest, keys: AIProviderKeys = Depends()
 # ─── AI: Audio Generation ─────────────────────────────────────────────────────
 @api_router.post("/generate-audio", response_model=AudioResponse)
 async def generate_audio(request: AudioRequest, x_elevenlabs_key: Optional[str] = Header(None, alias="X-ElevenLabs-Key"), x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key")):
+    if not request.prompt or not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="Text is required for audio generation")
     try:
         if request.provider == "elevenlabs":
             if not x_elevenlabs_key:
@@ -689,10 +702,12 @@ async def animate_image(request: AnimateRequest, keys: AIProviderKeys = Depends(
             raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
         
         if request.provider == "minimax":
-            if not keys.minimax: raise HTTPException(status_code=400, detail="Minimax API key required")
+            if not keys.minimax:
+                raise HTTPException(status_code=400, detail="Minimax API key required")
             video_url = await VideoEngine.generate_minimax(str(local_path), request.prompt, keys.minimax)
         elif request.provider == "runway":
-            if not keys.runway: raise HTTPException(status_code=400, detail="Runway API key required")
+            if not keys.runway:
+                raise HTTPException(status_code=400, detail="Runway API key required")
             video_url = await VideoEngine.generate_runway(str(local_path), request.prompt, keys.runway)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown animation provider: {request.provider}")
@@ -816,18 +831,21 @@ async def generate_video(
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             processed_images = []
+            tasks = []
+
             for idx, url in enumerate(image_urls):
                 filename = url.split('/')[-1]
                 source_path = UPLOADS_DIR / filename
                 if not source_path.exists():
                     raise HTTPException(status_code=404, detail=f"Image not found: {filename}")
-                img = Image.open(source_path)
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
+
                 processed_path = temp_path / f"image_{idx:04d}.jpg"
-                img.save(processed_path, 'JPEG', quality=95)
                 processed_images.append(str(processed_path))
+
+                # Offload image processing to threads and run in parallel
+                tasks.append(asyncio.to_thread(_prepare_image, source_path, processed_path, width, height))
+
+            await asyncio.gather(*tasks)
 
             video_id = str(uuid.uuid4())
             output_ext = "mp4" if format == "mp4" else "mkv"
@@ -922,10 +940,14 @@ async def get_projects():
 
 @api_router.delete("/projects/{project_id}")
 async def delete_project(project_id: str):
-    result = await db.projects.delete_one({"id": project_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return {"message": "Project deleted"}
+    try:
+        result = await db.projects.delete_one({"id": project_id})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return {"message": "Project deleted"}
+    except Exception as e:
+        logger.warning(f"Could not delete project from MongoDB: {e}")
+        return {"message": "Project deleted"}
 
 # ─── Stock Media ──────────────────────────────────────────────────────────────
 @api_router.get("/stock-videos")

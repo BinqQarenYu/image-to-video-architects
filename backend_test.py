@@ -6,7 +6,7 @@ from datetime import datetime
 from PIL import Image
 
 class ArchitectureVideoAPITester:
-    def __init__(self, base_url="https://building-panorama.preview.likhatechbuilder.com"):
+    def __init__(self, base_url="http://127.0.0.1:8000"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
